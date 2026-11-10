@@ -67,6 +67,8 @@ docs/
 
 Cloudflare Workers è stateless e D1 ha un primary unico: non ci sono WebSocket né push nativo. Le scadenze sono quindi valutate **lazy**: ogni richiesta di stato o azione controlla se una fase ha superato la deadline e, se configurato, la chiude. Il polling condizionale (ETag) ogni 4 secondi, solo a pagina visibile, rende la chiusura tempestiva senza infrastruttura aggiuntiva. Vedi ADR-0004.
 
+Se `settings.autoAdvance` è attivo, la chiusura di una fase apre la successiva nella stessa richiesta. L'operazione è idempotente e si ferma su `awaiting_resolution`, `cancelled` o assenza di una fase successiva `pending`. Vedi ADR-0010.
+
 ## Limiti di istanza
 
 Versus è dimensionato per un gruppo chiuso e stretto:
@@ -119,3 +121,4 @@ Workers con static assets (`wrangler.jsonc`), cartella pubblicata `dist/`.
 - ADR-0006: piano a fasi evolutivo, modificabile solo tra fasi (A2).
 - ADR-0008: template condivisi e modificabili da tutti gli organizzatori.
 - ADR-0009: limiti di istanza per un gruppo chiuso.
+- ADR-0010: avanzamento automatico opzionale, impostabile alla creazione del torneo.

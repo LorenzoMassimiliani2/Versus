@@ -16,7 +16,7 @@ L'esempio dell'organizzatore è: 40 elementi, gironi da 4, passano i primi 2 (20
 - Il ripescaggio è una proprietà della transizione (`advance.repechage`), non una fase con voti propri.
 - Gli esclusi vengono ordinati con criteri configurabili (`group_points`, `first_preferences`, `weight_difference`, `draw`).
 - I primi fino a `targetSize` vengono aggiunti ai qualificati.
-- L'organizzatore può sostituire a mano i ripescati prima di aprire la fase successiva; la modifica è tracciata.
+- Se l'avanzamento automatico è disattivato, l'organizzatore può sostituire a mano i ripescati prima di aprire la fase successiva; la modifica è tracciata. Con l'avanzamento automatico valgono i criteri calcolati.
 - Una variante votata potrà essere aggiunta in seguito come formula `repechage` con scheda di voto.
 
 ## Conseguenze
@@ -24,4 +24,5 @@ L'esempio dell'organizzatore è: 40 elementi, gironi da 4, passano i primi 2 (20
 - Il piano resta semplice e l'anteprima può calcolare i ripescati prima che il torneo inizi.
 - Nessun voto aggiuntivo richiesto ai partecipanti.
 - I criteri devono essere espliciti e deterministici, altrimenti il ripescaggio diventa opaco.
+- Con l'avanzamento automatico non esiste una finestra tra le fasi per correggere i ripescati: per mantenere l'override manuale l'opzione va lasciata disattivata.
 - Se in futuro il ripescaggio votato diventa necessario, servirà una nuova formula e una migrazione del piano, non un cambio di significato di `advance`.

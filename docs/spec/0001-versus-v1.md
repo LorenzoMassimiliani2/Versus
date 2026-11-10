@@ -20,6 +20,7 @@ Una PWA installabile con:
 
 - **Tornei** come sequenza ordinata di **Fasi**. Ogni fase ha una formula (`girone`, `eliminazione`, `classifica`), una scheda di voto (`duello`, `classifica`, `scelta`), una configurazione di tempi, segretezza e crediti, e una regola di avanzamento (`vincitore` oppure `qualifica N`).
 - **Piano evolutivo**: le fasi future si possono aggiungere, togliere e riconfigurare finché non vengono avviate. Una fase avviata non cambia (decisione A2).
+- **Avanzamento automatico opzionale**: se attivato alla creazione, alla chiusura di una fase si apre da sola la fase successiva, senza intervento dell'organizzatore.
 - **Crediti** spendibili solo nei duelli: aumentano il peso del voto e fungono da primo spareggio. Budget per fase, deciso dall'organizzatore.
 - **Segretezza** per fase: risultati live, nascosti fino alla chiusura, oppure segreti anche all'organizzatore.
 - **Voto mobile**: una schermata per fase, con tutte le sfide aperte o in sequenza, video YouTube incorporato e barra dei crediti.
@@ -127,7 +128,7 @@ pending -> open -> closed
 15. Come organizzatore, voglio avviare la prima fase quando sono pronti tutti.
 16. Come organizzatore, voglio scegliere per un girone se usare una classifica unica o un round-robin di duelli.
 17. Come organizzatore, voglio configurare dimensione dei gironi, criteri di riempimento e quanti passano per girone.
-18. Come organizzatore, voglio che il ripescaggio proponga automaticamente i migliori esclusi e poterli cambiare a mano.
+18. Come organizzatore, voglio che il ripescaggio proponga automaticamente i migliori esclusi e poterli cambiare a mano prima di aprire la fase successiva, quando l'avanzamento automatico è disattivato.
 19. Come organizzatore, voglio un'eliminazione diretta con seeding e bye automatici, così da gestire numeri non potenza di due.
 20. Come organizzatore, voglio una fase di classifica con scala punti in stile Eurovision, modificabile.
 21. Come organizzatore, voglio decidere se una fase elegge il vincitore o qualifica N elementi alla successiva.
@@ -155,6 +156,7 @@ pending -> open -> closed
 43. Come organizzatore, voglio esportare i dati del torneo in CSV o JSON.
 44. Come partecipante, voglio installare la PWA e consultare gli ultimi dati visti anche offline.
 45. Come partecipante, voglio che la schermata di voto si aggiorni da sola quando l'organizzatore apre o chiude una fase.
+46. Come organizzatore, voglio attivare l'avanzamento automatico alla creazione del torneo, così che la fase successiva si apra da sola alla chiusura della precedente.
 
 ## Regole di dominio
 
@@ -218,6 +220,7 @@ Impostazioni del torneo (campo `settings`):
 ```ts
 type TournamentSettings = {
   selfVoteAllowed: boolean;   // default true
+  autoAdvance: boolean;       // default false; solo prima dell'apertura della prima fase
   timezone: string;           // default "Europe/Rome", solo per i default di creazione
 };
 ```
@@ -253,7 +256,7 @@ La pubblicazione è bloccata se una di queste regole fallisce:
 14. Il torneo ha un nome non vuoto e uno slug univoco generato dal nome.
 15. Il torneo ha al massimo 20 partecipanti attivi.
 
-L'anteprima mostra: numero di partecipanti per fase, gironi generati, accoppiamenti, bye, qualificati e ripescati. I warning non bloccanti (per esempio una deadline precedente alla fase prima) sono mostrati ma non impediscono la pubblicazione.
+L'anteprima mostra: numero di partecipanti per fase, gironi generati, accoppiamenti, bye, qualificati e ripescati. I warning non bloccanti (per esempio una deadline precedente alla fase prima) sono mostrati ma non impediscono la pubblicazione. Con `autoAdvance` attivo, l'anteprima segnala anche le deadline non successive a quella della fase precedente e quelle già passate.
 
 ### Composizione dei gironi
 
@@ -286,7 +289,7 @@ Criteri disponibili, nell'ordine configurato:
 
 `weight_difference` è disponibile solo se la fase precedente ha prodotto duelli; negli altri casi la validazione lo segnala come criterio non applicabile.
 
-Se `targetSize` è già raggiunto dai qualificati diretti, il ripescaggio non fa nulla. Se gli esclusi non bastano, la validazione del piano lo segnala come errore. L'organizzatore può sempre sostituire a mano i ripescati prima di aprire la fase successiva; la modifica è tracciata.
+Se `targetSize` è già raggiunto dai qualificati diretti, il ripescaggio non fa nulla. Se gli esclusi non bastano, la validazione del piano lo segnala come errore. Se `autoAdvance` è disattivato, l'organizzatore può sostituire a mano i ripescati prima di aprire la fase successiva; la modifica è tracciata. Con `autoAdvance` attivo valgono solo i criteri automatici.
 
 ### Schede di voto
 
@@ -416,13 +419,28 @@ Alla chiusura:
 
 **Avanzamento**
 
-- Dopo la chiusura, la fase successiva resta `pending` finché l'organizzatore non la apre.
+- Se `autoAdvance` è `false`, dopo la chiusura la fase successiva resta `pending` finché l'organizzatore non la apre. Se è `true`, si apre automaticamente come descritto sotto.
 - Gli elementi in ingresso sono calcolati dalla regola di avanzamento più l'eventuale ripescaggio; l'organizzatore può correggere a mano i ripescati.
 - Una fase `cancelled` non produce avanzamento; l'organizzatore deve ridefinire il piano.
 
+**Avanzamento automatico**
+
+`settings.autoAdvance` è un'opzione del torneo, default `false`, impostata alla creazione e modificabile solo finché la prima fase non è aperta.
+
+Quando è `true`:
+
+- alla chiusura di una fase, se la fase immediatamente successiva è `pending`, viene aperta nella stessa richiesta, con la configurazione già definita nel piano;
+- l'apertura usa gli elementi calcolati da avanzamento e ripescaggio, senza intervento dell'organizzatore;
+- se la fase va in `awaiting_resolution`, l'avanzamento è sospeso finché l'organizzatore non risolve e chiude;
+- se la fase chiusa è l'ultima, il torneo va in `concluded` e non si apre nulla;
+- una fase `cancelled` non attiva l'avanzamento automatico;
+- con `autoAdvance` attivo il ripescaggio usa i criteri automatici: non c'è una finestra tra le fasi per sostituire a mano i ripescati. Per mantenere l'override manuale, disattivare `autoAdvance`;
+- se la deadline della fase successiva è già passata al momento dell'apertura, la fase si apre e si chiude alla prima richiesta successiva, secondo la regola lazy;
+- l'operazione è idempotente: due richieste concorrenti non aprono due volte la stessa fase. Se l'apertura automatica fallisce, la chiusura resta valida, la fase successiva resta `pending` e l'errore è visibile all'organizzatore.
+
 ### Modificabilità (decisione A2)
 
-Prima dell'apertura della prima fase si può modificare tutto: elementi, partecipanti, fasi, configurazioni, template.
+Prima dell'apertura della prima fase si può modificare tutto: elementi, partecipanti, fasi, configurazioni, impostazioni del torneo, template.
 
 Dopo l'apertura della prima fase:
 
@@ -431,7 +449,7 @@ Dopo l'apertura della prima fase:
 - **Elementi**: metadati (nome, descrizione, immagine, video, campi personalizzati) modificabili con traccia nel log. Aggiunta e rimozione consentite solo se l'elemento non ha partecipato ad alcuna fase aperta o chiusa.
 - **Partecipanti**: aggiunta e rimozione solo tra una fase e l'altra. La rimozione conserva i voti già espressi, aggregati e anonimi.
 - **Organizzatori**: nomina e revoca sempre possibili da parte dell'`owner`; un `admin` può farlo solo se è organizzatore del torneo.
-- **Torneo**: nome, descrizione e copertina modificabili sempre.
+- **Torneo**: nome, descrizione e copertina modificabili sempre. `settings.autoAdvance` è modificabile solo prima dell'apertura della prima fase.
 
 Ogni modifica strutturale produce una riga in `audit_log` con `before`, `after`, attore e data. Il log è visibile a tutti gli organizzatori del torneo.
 
@@ -448,6 +466,10 @@ Ogni modifica strutturale produce una riga in `audit_log` con `before`, `after`,
 - **Doppio invio dello stesso voto**: idempotente grazie alla chiave primaria; l'ultimo aggiornamento vince e produce un nuovo evento.
 - **Voto su una sfida non aperta**: rifiutato con `409`.
 - **Crediti oltre il budget**: rifiutato con `422` e saldo invariato.
+- **Avanzamento automatico con fase successiva `cancelled`**: non si apre nulla; l'organizzatore deve correggere il piano.
+- **Avanzamento automatico con deadline della fase successiva già passata**: la fase si apre e si chiude alla prima richiesta successiva; l'anteprima avvisa.
+- **Avanzamento automatico con pareggio irrisolto**: la fase resta `awaiting_resolution` e nessuna fase si apre.
+- **Avanzamento automatico e ripescaggio**: i ripescati sono quelli calcolati; l'override manuale tra fasi non è disponibile.
 
 ## Dati e API
 
@@ -730,9 +752,9 @@ Regole: username minuscolo, 3–32 caratteri `[a-z0-9_.-]`, univoco; password 8�
 | Metodo | Rotta | Ruolo | Note |
 |---|---|---|---|
 | GET | `/api/tournaments` | autenticato | solo tornei dove si è organizzatore o partecipante |
-| POST | `/api/tournaments` | utente attivo | `{ name, description }`, chi lo crea diventa `owner`; slug generato dal nome |
+| POST | `/api/tournaments` | utente attivo | `{ name, description, settings? }`, chi lo crea diventa `owner`; slug generato dal nome; `settings.autoAdvance` default `false` |
 | GET | `/api/tournaments/:id` | membro | dettaglio filtrato per ruolo |
-| PATCH | `/api/tournaments/:id` | organizzatore | nome, descrizione, copertina, impostazioni |
+| PATCH | `/api/tournaments/:id` | organizzatore | nome, descrizione, copertina, impostazioni; `autoAdvance` solo prima dell'apertura della prima fase |
 | GET | `/api/tournaments/:id/preview` | organizzatore | validazione e anteprima del piano |
 | POST | `/api/tournaments/:id/publish` | organizzatore | richiede piano valido |
 | POST | `/api/tournaments/:id/reopen` | owner | da `concluded` a `running`, con conferma |
@@ -853,7 +875,7 @@ I template sono condivisi e modificabili da tutti gli organizzatori. Un template
 5. **Risultati fase**: classifiche, sfide, qualificati, ripescati, stato di segretezza.
 6. **Podio**: primi tre, classifica completa, statistiche.
 7. **Pannello organizzatore**: overview, elementi, partecipanti, piano, log.
-8. **Wizard creazione**: dettagli → elementi → campi → partecipanti → piano → anteprima → pubblica.
+8. **Wizard creazione**: dettagli (incluso `autoAdvance`) → elementi → campi → partecipanti → piano → anteprima → pubblica.
 9. **Gestione utenti (admin)**: crea, disattiva, imposta password, copia credenziali.
 
 ### Comportamenti mobile
@@ -993,6 +1015,16 @@ I template sono condivisi e modificabili da tutti gli organizzatori. Un template
 61. Applicare un template copia il piano nel nuovo torneo; una modifica successiva al template non cambia il torneo già creato.
 62. Una fase `closed` non può essere modificata né riaperta: ogni tentativo restituisce `409`.
 
+### Avanzamento automatico
+
+63. Con `autoAdvance: true`, alla chiusura della fase 1 la fase 2 diventa `open` nella stessa richiesta, senza un'altra azione dell'organizzatore.
+64. Con `autoAdvance: false`, alla chiusura della fase 1 la fase 2 resta `pending`.
+65. Se la fase va in `awaiting_resolution`, `autoAdvance` non apre la successiva; dopo la risoluzione e la chiusura, la apre.
+66. Con `autoAdvance: true` e l'ultima fase chiusa, il torneo passa a `concluded` e nessuna fase viene aperta.
+67. `autoAdvance` non è modificabile dopo l'apertura della prima fase: la richiesta restituisce `409`.
+68. Con `autoAdvance: true`, il ripescaggio usa i criteri automatici e l'override manuale tra fasi non è disponibile.
+69. Due richieste concorrenti che chiudono la stessa fase con `autoAdvance` attivo aprono la fase successiva una sola volta.
+
 ## Seams e test
 
 - **Motore di dominio puro** in `src/domain/`: `validatePlan`, `buildGroups`, `buildBracket`, `tallyDuel`, `tallyRanking`, `tallyPick`, `computeStandings`, `applyAdvance`, `applyRepechage`, `resolveTie`.
@@ -1015,6 +1047,7 @@ I template sono condivisi e modificabili da tutti gli organizzatori. Un template
 - L'istanza è dimensionata per un gruppo stretto: massimo 20 utenti attivi e 10 tornei attivi.
 - Una fase chiusa non viene riaperta in v1.
 - La modalità `secret` è una garanzia applicativa, non crittografica.
+- `settings.autoAdvance` è disattivato per default. Attivarlo comporta l'apertura automatica della fase successiva e rinuncia all'override manuale dei ripescati tra le fasi.
 
 ## Decisioni chiuse il 2026-11-10
 
@@ -1025,3 +1058,4 @@ I template sono condivisi e modificabili da tutti gli organizzatori. Un template
 5. UI con token shadcn-vue di default e wordmark "Versus"; logo e palette definitivi sono rimandati.
 6. Nessuna riapertura di fase chiusa in v1.
 7. Chiusura a scadenza lazy e idempotente.
+8. Avanzamento automatico opzionale, impostabile alla creazione e immutabile dopo l'apertura della prima fase.
