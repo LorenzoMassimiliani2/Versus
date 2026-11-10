@@ -1,7 +1,7 @@
 ---
 id: TICKET-0019
 title: Votare classifica e scelta
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0015, TICKET-0011]
 blocks: [TICKET-0020, TICKET-0021]
