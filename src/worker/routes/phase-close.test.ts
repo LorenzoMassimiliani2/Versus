@@ -9,34 +9,9 @@ import { hashPassword } from '../auth/password'
 const ORIGIN = 'https://versus.test'
 const NOW = '2026-11-10T10:00:00.000Z'
 
-/**
- * Schema dei voti previsto dai ticket TICKET-0018/0019. La chiusura funziona
- * anche senza queste tabelle; qui servono per verificare il calcolo dei risultati.
- */
+/** Ambiente di test: le migrazioni includono le tabelle dei voti. */
 function createEnv() {
-  const created = createTestEnvironment()
-  created.db.exec(`
-    CREATE TABLE IF NOT EXISTS duel_votes (
-      match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-      voter_id TEXT NOT NULL REFERENCES users(id),
-      side TEXT NOT NULL CHECK (side IN ('a','b','abstain')),
-      credits INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (match_id, voter_id)
-    );
-    CREATE TABLE ballot_votes (
-      phase_id TEXT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
-      target_id TEXT NOT NULL,
-      voter_id TEXT NOT NULL REFERENCES users(id),
-      kind TEXT NOT NULL CHECK (kind IN ('ranking','pick')),
-      payload TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (phase_id, target_id, voter_id)
-    );
-  `)
-  return created
+  return createTestEnvironment()
 }
 
 
