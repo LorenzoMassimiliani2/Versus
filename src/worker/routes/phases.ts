@@ -24,6 +24,7 @@ import { findOrganizerRole, findTournamentById, findTournamentRole } from '../db
 import { apiError, json } from '../http/json'
 import { closePhaseIfDue, handlePhaseCloseRoute } from './phase-close'
 import { handlePhaseOpeningRoute } from './phase-opening'
+import { handlePhaseTargetsRoute } from './phase-targets'
 import { handlePhaseVotesRoute } from './phase-votes'
 
 interface PhaseBody {
@@ -297,6 +298,9 @@ export async function handlePhasesRoute(
 
   const openingResponse = await handlePhaseOpeningRoute(request, env, auth, now)
   if (openingResponse) return openingResponse
+
+  const targetsResponse = await handlePhaseTargetsRoute(request, env, auth, now)
+  if (targetsResponse) return targetsResponse
 
   const orderMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/phases\/order$/)
   if (orderMatch && method === 'PUT') {

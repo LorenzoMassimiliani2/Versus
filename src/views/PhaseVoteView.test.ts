@@ -312,3 +312,51 @@ describe('PhaseVoteView con schede classifica e pick', () => {
     expect(String(remove![0])).toContain('/api/phases/p1/ballots/p1')
   })
 })
+
+
+describe('PhaseVoteView in modalità sequenziale', () => {
+  it('mostra target completati, corrente e mancanti e disabilita quelli chiusi', async () => {
+    const sequentialBallot = {
+      ...RANKING_BALLOT,
+      votingMode: 'sequential',
+      completion: { voted: 1, total: 2 },
+      targets: [
+        {
+          ...RANKING_BALLOT.targets[0],
+          id: 'g1',
+          name: 'Girone A',
+          status: 'completed',
+          vote: {
+            kind: 'ranking',
+            assignments: [{ elementId: 'e1', points: 5 }],
+          },
+          points: { scale: [5, 3, 1], used: [5], remaining: [3, 1] },
+        },
+        {
+          ...RANKING_BALLOT.targets[0],
+          id: 'g2',
+          name: 'Girone B',
+          status: 'open',
+        },
+      ],
+      progress: {
+        currentTargetId: 'g2',
+        targets: [
+          { id: 'g1', name: 'Girone A', position: 1, status: 'completed', voted: true },
+          { id: 'g2', name: 'Girone B', position: 2, status: 'open', voted: false },
+        ],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(sequentialBallot)))
+
+    const wrapper = await mountView()
+
+    expect(wrapper.text()).toContain('Avanzamento del voto')
+    expect(wrapper.get('#vote-current-target').text()).toContain('Girone B')
+    expect(wrapper.get('#vote-missing').text()).toContain('1 mancanti')
+    expect(wrapper.text()).toContain('Girone A')
+    expect(wrapper.text()).toContain('Completato')
+    expect(wrapper.get('#save-ranking-g1').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('#save-ranking-g2').attributes('disabled')).toBeUndefined()
+  })
+})

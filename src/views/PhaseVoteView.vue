@@ -17,6 +17,19 @@ const ballot = computed(() => votes.ballot)
 const phaseOpen = computed(() => ballot.value?.phase.status === 'open')
 const voteType = computed(() => ballot.value?.phase.voteType)
 const isDuel = computed(() => voteType.value === 'duel')
+const isSequential = computed(() => ballot.value?.votingMode === 'sequential')
+const currentTargetName = computed(() => {
+  const progress = ballot.value?.progress
+  if (!progress?.currentTargetId) return null
+  return progress.targets.find((target) => target.id === progress.currentTargetId)?.name ?? null
+})
+const missingVotes = computed(() =>
+  ballot.value ? Math.max(0, ballot.value.completion.total - ballot.value.completion.voted) : 0,
+)
+
+function targetOpen(target: { status?: string }): boolean {
+  return target.status === undefined || target.status === 'open'
+}
 
 const title = computed(() => {
   if (voteType.value === 'ranking') return strings.voting.titleRanking
@@ -115,6 +128,30 @@ async function removeTarget(targetId: string): Promise<void> {
         </div>
       </dl>
 
+      <p v-if="isSequential" id="vote-missing" class="text-sm text-muted-foreground">
+        {{ strings.voting.missing(missingVotes) }}
+      </p>
+
+      <section v-if="isSequential && ballot.progress" class="space-y-2 rounded-md border border-border p-3">
+        <h2 class="text-sm font-semibold">{{ strings.voting.sequentialProgress }}</h2>
+        <p v-if="currentTargetName" id="vote-current-target" class="text-sm">
+          {{ strings.voting.currentTarget(currentTargetName) }}
+        </p>
+        <p v-else class="text-sm">{{ strings.voting.allTargetsDone }}</p>
+        <ol class="space-y-1 text-sm">
+          <li
+            v-for="target in ballot.progress.targets"
+            :key="target.id"
+            class="flex items-center justify-between gap-2"
+          >
+            <span>{{ target.position }}. {{ target.name }}</span>
+            <span class="text-xs uppercase tracking-wide text-muted-foreground">
+              {{ strings.voting.targetStatus[target.status] }}
+            </span>
+          </li>
+        </ol>
+      </section>
+
       <p v-if="votes.saved" class="text-sm text-muted-foreground" role="status">
         {{ strings.voting.saved }}
       </p>
@@ -148,7 +185,7 @@ async function removeTarget(targetId: string): Promise<void> {
             <RankingBallotCard
               v-if="voteType === 'ranking'"
               :target="target"
-              :disabled="!phaseOpen"
+              :disabled="!phaseOpen || !targetOpen(target)"
               :saving="votes.saving"
               @save="(assignments) => saveRanking(target.id, assignments)"
               @remove="removeTarget(target.id)"
@@ -156,7 +193,7 @@ async function removeTarget(targetId: string): Promise<void> {
             <PickBallotCard
               v-else-if="voteType === 'pick'"
               :target="target"
-              :disabled="!phaseOpen"
+              :disabled="!phaseOpen || !targetOpen(target)"
               :saving="votes.saving"
               @save="(elementId) => savePick(target.id, elementId)"
               @remove="removeTarget(target.id)"

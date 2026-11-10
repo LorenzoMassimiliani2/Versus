@@ -623,3 +623,37 @@ describe('migrazione 0008', () => {
     db.close()
   })
 })
+
+
+describe('migrazione 0009', () => {
+  function seedPhase(db: DatabaseSync): void {
+    seedTournament(db, 't1', 'torneo-di-prova')
+    db.prepare(
+      `INSERT INTO phases (id, tournament_id, position, name, formula, vote_type, config, advance, created_at, updated_at)
+       VALUES ('p1', 't1', 1, 'Semifinali', 'elimination', 'duel', '{}', '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+  }
+
+  it('crea phase_targets con stato valido, ordine unico e cascata con la fase', () => {
+    const db = migratedDatabase()
+    seedPhase(db)
+
+    const insert = db.prepare(
+      `INSERT INTO phase_targets (phase_id, target_id, name, position, status, opened_at, completed_at)
+       VALUES ('p1', ?, ?, ?, ?, NULL, NULL)`,
+    )
+    insert.run('m1', 'Sfida 1', 1, 'open')
+    expect(() => insert.run('m1', 'Duplicato', 2, 'pending')).toThrow()
+    expect(() => insert.run('m2', 'Sfida 2', 1, 'pending')).toThrow()
+    expect(() => insert.run('m3', 'Sfida 3', 3, 'sconosciuto')).toThrow()
+
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
+    ).map((row) => row.name)
+    expect(indexes).toContain('idx_phase_targets_phase')
+
+    db.prepare("DELETE FROM phases WHERE id = 'p1'").run()
+    expect(db.prepare('SELECT COUNT(*) AS count FROM phase_targets').get()).toEqual({ count: 0 })
+    db.close()
+  })
+})
