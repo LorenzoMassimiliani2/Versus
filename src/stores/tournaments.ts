@@ -46,6 +46,10 @@ interface TournamentResponse {
   tournament: TournamentDetail
 }
 
+interface OrganizerResponse {
+  organizer: TournamentOrganizer
+}
+
 interface ErrorResponse {
   error?: string
 }
@@ -150,6 +154,67 @@ export const useTournamentsStore = defineStore('tournaments', {
           item.id === tournament.id ? { ...item, ...tournament } : item,
         )
         return true
+      } catch {
+        this.error = strings.errors.network
+        return false
+      } finally {
+        this.saving = false
+      }
+    },
+
+    async nominateOrganizer(id: string, userId: string): Promise<boolean> {
+      return this.mutateOrganizers(async () => {
+        const response = await fetch(`/api/tournaments/${encodeURIComponent(id)}/organizers`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ userId }),
+        })
+        if (!response.ok) {
+          this.error = tournamentErrorMessage(await errorCode(response))
+          return false
+        }
+        const organizer = ((await response.json()) as OrganizerResponse).organizer
+        if (this.current) {
+          const exists = this.current.organizers.some((item) => item.userId === organizer.userId)
+          this.current.organizers = exists
+            ? this.current.organizers.map((item) =>
+                item.userId === organizer.userId ? organizer : item,
+              )
+            : [...this.current.organizers, organizer]
+        }
+        return true
+      })
+    },
+
+    async revokeOrganizer(id: string, userId: string): Promise<boolean> {
+      return this.mutateOrganizers(async () => {
+        const response = await fetch(
+          `/api/tournaments/${encodeURIComponent(id)}/organizers/${encodeURIComponent(userId)}`,
+          {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          },
+        )
+        if (!response.ok) {
+          this.error = tournamentErrorMessage(await errorCode(response))
+          return false
+        }
+        if (this.current) {
+          this.current.organizers = this.current.organizers.filter(
+            (item) => item.userId !== userId,
+          )
+        }
+        return true
+      })
+    },
+
+    async mutateOrganizers(operation: () => Promise<boolean>): Promise<boolean> {
+      this.error = null
+      this.saving = true
+      try {
+        return await operation()
       } catch {
         this.error = strings.errors.network
         return false

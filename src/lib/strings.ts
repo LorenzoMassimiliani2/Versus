@@ -86,6 +86,34 @@ export const strings = {
     saving: 'Salvataggio…',
     saved: 'Modifiche salvate.',
   },
+  participants: {
+    title: 'Partecipanti',
+    subtitle: 'Fino a 20 partecipanti attivi. La lista si gestisce mentre il torneo è in bozza.',
+    count: (active: number, maximum: number) => `${active}/${maximum} partecipanti attivi`,
+    empty: 'Nessun partecipante.',
+    addLabel: 'Aggiungi partecipante',
+    add: 'Aggiungi',
+    adding: 'Aggiunta…',
+    remove: 'Rimuovi',
+    select: 'Seleziona un utente',
+    noCandidates: 'Tutti gli utenti attivi partecipano già.',
+    limit: 'Limite di 20 partecipanti attivi raggiunto.',
+    locked: 'I partecipanti si possono aggiungere o rimuovere solo mentre il torneo è in bozza.',
+    status: {
+      active: 'Attivo',
+      removed: 'Rimosso',
+    },
+  },
+  organizers: {
+    title: 'Organizzatori',
+    subtitle: 'Il proprietario del torneo nomina e revoca i co-organizzatori.',
+    nominateLabel: 'Nomina co-organizzatore',
+    nominate: 'Nomina',
+    nominating: 'Nomina…',
+    revoke: 'Revoca',
+    select: 'Seleziona un utente',
+    noCandidates: 'Nessun utente da nominare.',
+  },
   elements: {
     title: 'Elementi',
     subtitle: 'Cosa si vota: nome, immagine obbligatoria e video opzionale.',
@@ -147,6 +175,10 @@ export const strings = {
     username_taken: 'Username già in uso.',
     not_found: 'Utente non trovato.',
     tournament_not_found: 'Torneo non trovato.',
+    participant_limit_reached: 'Limite di 20 partecipanti attivi raggiunto.',
+    tournament_not_editable: 'I partecipanti si modificano solo mentre il torneo è in bozza.',
+    already_organizer: 'L utente è già organizzatore del torneo.',
+    cannot_remove_owner: 'L owner non può essere revocato.',
     network: 'Impossibile contattare il server. Riprova.',
     unknown: 'Errore imprevisto. Riprova.',
   },
@@ -206,6 +238,20 @@ const ELEMENT_ERROR_MESSAGES: Record<string, string> = {
   duplicate_field_key: strings.errors.duplicate_field_key,
   forbidden: strings.errors.forbidden,
   not_found: strings.errors.element_not_found,
+}
+
+const PARTICIPANTS_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.tournament_not_found,
+  participant_limit_reached: strings.errors.participant_limit_reached,
+  tournament_not_editable: strings.errors.tournament_not_editable,
+  already_organizer: strings.errors.already_organizer,
+  cannot_remove_owner: strings.errors.cannot_remove_owner,
+}
+
+export function participantsErrorMessage(code: string | undefined): string {
+  return (code && PARTICIPANTS_ERROR_MESSAGES[code]) || strings.errors.unknown
 }
 
 export function elementsErrorMessage(code: string | undefined): string {

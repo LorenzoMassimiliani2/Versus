@@ -3,12 +3,14 @@ import { uuidv7 } from '../db/ids'
 import {
   findOrganizerRole,
   findTournamentById,
+  findTournamentRole,
   insertOrganizer,
   insertTournament,
-  listOrganizedTournaments,
+  listMemberTournaments,
   listOrganizers,
   uniqueSlug,
   updateTournamentDetails,
+  type MembershipRole,
   type OrganizerRecord,
   type OrganizerRole,
   type TournamentRecord,
@@ -49,7 +51,7 @@ interface TournamentSummary {
   status: string
   createdAt: string
   updatedAt: string
-  role: OrganizerRole
+  role: MembershipRole
 }
 
 interface TournamentDetail extends TournamentSummary {
@@ -169,7 +171,7 @@ function parseSettings(raw: string): TournamentSettings {
   }
 }
 
-function summarize(tournament: TournamentRecord, role: OrganizerRole): TournamentSummary {
+function summarize(tournament: TournamentRecord, role: MembershipRole): TournamentSummary {
   return {
     id: tournament.id,
     slug: tournament.slug,
@@ -194,7 +196,7 @@ function summarizeOrganizer(organizer: OrganizerRecord): OrganizerSummary {
 
 function toDetail(
   tournament: TournamentRecord,
-  role: OrganizerRole,
+  role: MembershipRole,
   organizers: OrganizerRecord[],
 ): TournamentDetail {
   return {
@@ -208,7 +210,7 @@ function toDetail(
 }
 
 async function listTournamentsHandler(env: Env, auth: AuthContext): Promise<Response> {
-  const tournaments = await listOrganizedTournaments(env, auth.user.id)
+  const tournaments = await listMemberTournaments(env, auth.user.id)
   return json({
     tournaments: tournaments.map((tournament: TournamentWithRole) =>
       summarize(tournament, tournament.role),
@@ -262,9 +264,7 @@ async function getTournamentHandler(
   const tournament = await findTournamentById(env, tournamentId)
   if (!tournament) return apiError(404, 'not_found')
 
-  // I partecipanti arriveranno con TICKET-0006; per ora solo gli organizzatori
-  // possono vedere un torneo, e quindi anche le bozze restano riservate.
-  const role = await findOrganizerRole(env, tournamentId, auth.user.id)
+  const role = await findTournamentRole(env, tournamentId, auth.user.id)
   if (!role) return apiError(403, 'forbidden')
 
   const organizers = await listOrganizers(env, tournamentId)

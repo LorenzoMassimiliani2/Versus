@@ -89,6 +89,60 @@ describe('TournamentDetailView', () => {
     expect(wrapper.get('[role="status"]').text()).toBe('Modifiche salvate.')
   })
 
+  it('mostra la gestione dei partecipanti all organizzatore', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/participants')) {
+        return jsonResponse({
+          participants: [
+            {
+              userId: 'u2',
+              username: 'bruno',
+              status: 'active',
+              addedBy: 'u1',
+              addedAt: '2026-11-10T09:00:00.000Z',
+              removedAt: null,
+            },
+          ],
+        })
+      }
+      if (String(input).endsWith('/candidates')) {
+        return jsonResponse({ users: [{ id: 'u3', username: 'carla', isParticipant: false }] })
+      }
+      return jsonResponse({ tournament: DETAIL })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { wrapper } = await mountView()
+
+    expect(wrapper.text()).toContain('Partecipanti')
+    expect(wrapper.text()).toContain('Aggiungi partecipante')
+    expect(wrapper.text()).toContain('bruno')
+    expect(wrapper.text()).toContain('1/20 partecipanti attivi')
+  })
+
+  it('mostra il dettaglio al partecipante senza comandi di gestione', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          tournament: {
+            ...DETAIL,
+            role: 'participant',
+            status: 'published',
+          },
+        }),
+      ),
+    )
+
+    const { wrapper } = await mountView()
+
+    expect(wrapper.text()).toContain('Torneo di prova')
+    expect(wrapper.text()).toContain('Organizzatori')
+    expect(wrapper.text()).toContain('alice')
+    expect(wrapper.text()).not.toContain('Aggiungi partecipante')
+    expect(wrapper.find('#tournament-edit-form').exists()).toBe(false)
+  })
+
   it('non mostra il form di modifica a chi non è organizzatore', async () => {
     vi.stubGlobal(
       'fetch',

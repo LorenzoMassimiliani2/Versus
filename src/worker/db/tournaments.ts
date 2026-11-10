@@ -18,7 +18,8 @@ export interface TournamentRecord {
   concluded_at: string | null
 }
 
-export type TournamentWithRole = TournamentRecord & { role: OrganizerRole }
+export type MembershipRole = OrganizerRole | 'participant'
+export type TournamentWithRole = TournamentRecord & { role: MembershipRole }
 
 export interface OrganizerRecord {
   user_id: string
@@ -61,20 +62,55 @@ export async function uniqueSlug(env: Env, name: string): Promise<string> {
   return candidate
 }
 
-export function listOrganizedTournaments(
+/**
+ * Tornei in cui l'utente è organizzatore o partecipante attivo. Le bozze
+ * restano riservate agli organizzatori finché non vengono pubblicate.
+ * Se l'utente ha entrambi i ruoli prevale quello di organizzatore.
+ */
+export function listMemberTournaments(
   env: Env,
   userId: string,
 ): Promise<TournamentWithRole[]> {
   return env.DB.prepare(
-    `SELECT ${TOURNAMENT_COLUMNS}, o.role
+    `SELECT ${TOURNAMENT_COLUMNS},
+       CASE WHEN o.role IS NULL THEN 'participant' ELSE o.role END AS role
      FROM tournaments t
-     JOIN tournament_organizers o ON o.tournament_id = t.id
-     WHERE o.user_id = ?
+     LEFT JOIN tournament_organizers o
+       ON o.tournament_id = t.id AND o.user_id = ?
+     LEFT JOIN tournament_participants p
+       ON p.tournament_id = t.id AND p.user_id = ? AND p.status = 'active'
+     WHERE o.user_id IS NOT NULL
+        OR (p.user_id IS NOT NULL AND t.status <> 'draft')
      ORDER BY t.updated_at DESC, t.created_at DESC`,
   )
-    .bind(userId)
+    .bind(userId, userId)
     .all<TournamentWithRole>()
     .then((result) => result.results)
+}
+
+/**
+ * Ruolo dell'utente nel torneo, oppure `null` se non è membro. Un
+ * partecipante vede il torneo solo dopo la pubblicazione.
+ */
+export async function findTournamentRole(
+  env: Env,
+  tournamentId: string,
+  userId: string,
+): Promise<MembershipRole | null> {
+  const organizerRole = await findOrganizerRole(env, tournamentId, userId)
+  if (organizerRole) return organizerRole
+
+  const row = await env.DB.prepare(
+    `SELECT p.status, t.status AS tournament_status
+     FROM tournament_participants p
+     JOIN tournaments t ON t.id = p.tournament_id
+     WHERE p.tournament_id = ? AND p.user_id = ?`,
+  )
+    .bind(tournamentId, userId)
+    .first<{ status: string; tournament_status: string }>()
+
+  if (!row || row.status !== 'active' || row.tournament_status === 'draft') return null
+  return 'participant'
 }
 
 export function findOrganizerRole(
@@ -129,6 +165,18 @@ export function insertTournament(env: Env, tournament: NewTournament): Promise<u
       tournament.createdAt,
       tournament.updatedAt,
     )
+    .run()
+}
+
+export function deleteOrganizer(
+  env: Env,
+  tournamentId: string,
+  userId: string,
+): Promise<unknown> {
+  return env.DB.prepare(
+    'DELETE FROM tournament_organizers WHERE tournament_id = ? AND user_id = ?',
+  )
+    .bind(tournamentId, userId)
     .run()
 }
 
