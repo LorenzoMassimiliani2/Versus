@@ -28,6 +28,64 @@ interface PhaseResponse {
   phase: Phase
 }
 
+export interface PhaseOperationEntrant {
+  elementId: string
+  name: string
+  seed: number
+  position: number
+}
+
+export interface PhaseOperationVoter {
+  userId: string
+  creditsBudget: number
+}
+
+export interface PhaseOperationGroup {
+  id: string
+  name: string
+  position: number
+  members: Array<{ elementId: string; position: number }>
+}
+
+export interface PhaseOperationMatch {
+  id: string
+  groupId: string | null
+  round: number
+  position: number
+  sideA: string | null
+  sideB: string | null
+  winnerElementId: string | null
+  status: string
+}
+
+export interface PhaseOperation {
+  entrants: PhaseOperationEntrant[]
+  voters: PhaseOperationVoter[]
+  groups: PhaseOperationGroup[]
+  matches: PhaseOperationMatch[]
+}
+
+export interface OpeningEntry {
+  id: string
+  name: string
+}
+
+export interface OpeningPreview {
+  entrants: OpeningEntry[]
+  directQualified: OpeningEntry[]
+  repechage: {
+    targetSize: number
+    slots: number
+    selected: OpeningEntry[]
+    excluded: OpeningEntry[]
+  } | null
+}
+
+interface OpenResponse {
+  phase: Phase
+  operation: PhaseOperation
+}
+
 interface ErrorResponse {
   error?: string
 }
@@ -43,7 +101,12 @@ export const usePhasesStore = defineStore('phases', {
     settings: { ...DEFAULT_TOURNAMENT_SETTINGS } as TournamentSettings,
     loading: false,
     saving: false,
+    opening: false,
     error: null as string | null,
+    operation: null as PhaseOperation | null,
+    operationPhaseId: null as string | null,
+    preview: null as OpeningPreview | null,
+    previewPhaseId: null as string | null,
   }),
   getters: {
     firstPosition: (state) => state.phases[0]?.position ?? 1,
@@ -176,10 +239,71 @@ export const usePhasesStore = defineStore('phases', {
       }
     },
 
+    async loadOpeningPreview(phaseId: string): Promise<OpeningPreview | null> {
+      this.error = null
+      this.opening = true
+      try {
+        const response = await fetch(
+          `/api/phases/${encodeURIComponent(phaseId)}/open-preview`,
+          { credentials: 'same-origin', headers: { Accept: 'application/json' } },
+        )
+        if (!response.ok) {
+          this.error = phasesErrorMessage(await errorCode(response))
+          return null
+        }
+        const preview = (await response.json()) as OpeningPreview
+        this.preview = preview
+        this.previewPhaseId = phaseId
+        return preview
+      } catch {
+        this.error = strings.errors.network
+        return null
+      } finally {
+        this.opening = false
+      }
+    },
+
+    async open(phaseId: string, repechageOverride?: string[]): Promise<boolean> {
+      this.error = null
+      this.opening = true
+      try {
+        const body =
+          repechageOverride === undefined
+            ? {}
+            : { repechageOverride }
+        const response = await fetch(`/api/phases/${encodeURIComponent(phaseId)}/open`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!response.ok) {
+          this.error = phasesErrorMessage(await errorCode(response))
+          return false
+        }
+        const data = (await response.json()) as OpenResponse
+        this.phases = this.phases.map((item) => (item.id === data.phase.id ? data.phase : item))
+        this.operation = data.operation
+        this.operationPhaseId = data.phase.id
+        this.preview = null
+        this.previewPhaseId = null
+        return true
+      } catch {
+        this.error = strings.errors.network
+        return false
+      } finally {
+        this.opening = false
+      }
+    },
+
     clear(): void {
       this.phases = []
       this.settings = { ...DEFAULT_TOURNAMENT_SETTINGS }
       this.error = null
+      this.operation = null
+      this.operationPhaseId = null
+      this.preview = null
+      this.previewPhaseId = null
     },
   },
 })

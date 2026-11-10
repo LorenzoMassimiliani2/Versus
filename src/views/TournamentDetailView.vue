@@ -133,7 +133,11 @@ async function submitEdit(): Promise<void> {
 
       <template v-if="isOrganizer">
         <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
-        <PhasesPanel :tournament-id="tournamentId" :editable="participantsEditable" />
+        <PhasesPanel
+          :tournament-id="tournamentId"
+          :editable="participantsEditable"
+          :can-open="isOrganizer && tournaments.current.status !== 'draft'"
+        />
         <PlanPreviewPanel :tournament-id="tournamentId" />
         <CustomFieldsPanel :tournament-id="tournamentId" />
         <ElementsPanel :tournament-id="tournamentId" />
