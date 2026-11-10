@@ -261,3 +261,71 @@ describe('migrazione 0002', () => {
     db.close()
   })
 })
+
+describe('migrazione 0003', () => {
+  it('crea custom_fields ed elements con i vincoli previsti', () => {
+    const db = migratedDatabase()
+    seedUser(db, 'u1', 'alice')
+    seedTournament(db, 't1', 'torneo-di-prova')
+
+    db.prepare(
+      "INSERT INTO custom_fields (id, tournament_id, key, label, type, position) VALUES ('f1', 't1', 'genere', 'Genere', 'text', 1)",
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO custom_fields (id, tournament_id, key, label, type, position) VALUES ('f2', 't1', 'genere', 'Genere bis', 'text', 2)",
+        )
+        .run(),
+    ).toThrow()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO custom_fields (id, tournament_id, key, label, type, position) VALUES ('f3', 't1', 'anno', 'Anno', 'boolean', 2)",
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      `INSERT INTO elements (id, tournament_id, user_id, name, image_url, custom_values, position, created_at, updated_at)
+       VALUES ('e1', 't1', 'u1', 'Canzone', 'https://images.example.test/e1.jpg', '{}', 1, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO elements (id, tournament_id, name, image_url, custom_values, position, created_at, updated_at)
+           VALUES ('e2', 't1', 'Senza immagine', NULL, '{}', 2, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO elements (id, tournament_id, user_id, name, image_url, custom_values, position, created_at, updated_at)
+           VALUES ('e3', 't1', 'ignoto', 'Utente inesistente', 'https://images.example.test/e3.jpg', '{}', 2, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare("DELETE FROM tournaments WHERE id = 't1'").run()
+    expect(db.prepare('SELECT COUNT(*) AS count FROM custom_fields').get()).toEqual({ count: 0 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM elements').get()).toEqual({ count: 0 })
+    db.close()
+  })
+
+  it('crea gli indici di campi ed elementi', () => {
+    const db = migratedDatabase()
+
+    const rows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name")
+      .all() as { name: string }[]
+    expect(rows.map((row) => row.name)).toEqual(
+      expect.arrayContaining([
+        'idx_custom_fields_tournament',
+        'idx_elements_tournament',
+        'idx_elements_user',
+      ]),
+    )
+    db.close()
+  })
+})

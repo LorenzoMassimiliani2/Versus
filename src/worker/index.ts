@@ -2,6 +2,7 @@ import { isMutating, isSameOrigin } from './auth/origin'
 import { authenticate } from './auth/session'
 import { apiError } from './http/json'
 import { handleLogin, handleLogout, handleMe } from './routes/auth'
+import { handleElementsRoute } from './routes/elements'
 import { handleHealth } from './routes/health'
 import { handleTournamentsRoute } from './routes/tournaments'
 import { handleUsersRoute } from './routes/users'
@@ -38,6 +39,9 @@ export default {
 
     const tournamentsResponse = await handleTournamentsRoute(request, env, auth)
     if (tournamentsResponse) return tournamentsResponse
+
+    const elementsResponse = await handleElementsRoute(request, env, auth)
+    if (elementsResponse) return elementsResponse
 
     const usersResponse = await handleUsersRoute(request, env, auth)
     if (usersResponse) return usersResponse

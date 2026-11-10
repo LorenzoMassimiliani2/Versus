@@ -2,11 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
+import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import { strings, tournamentRoleLabel, tournamentStatusLabel } from '@/lib/strings'
+import { useElementsStore } from '@/stores/elements'
 import { useTournamentsStore } from '@/stores/tournaments'
 
 const route = useRoute()
 const tournaments = useTournamentsStore()
+const elements = useElementsStore()
 
 const tournamentId = computed(() => String(route.params.id))
 const isOrganizer = computed(
@@ -21,6 +25,7 @@ const saved = ref(false)
 onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
   syncForm()
+  if (isOrganizer.value) await elements.load(tournamentId.value)
 })
 
 function syncForm(): void {
@@ -113,6 +118,11 @@ async function submitEdit(): Promise<void> {
           </li>
         </ul>
       </div>
+
+      <template v-if="isOrganizer">
+        <CustomFieldsPanel :tournament-id="tournamentId" />
+        <ElementsPanel :tournament-id="tournamentId" />
+      </template>
 
       <form
         v-if="isOrganizer"

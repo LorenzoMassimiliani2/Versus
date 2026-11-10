@@ -86,8 +86,58 @@ export const strings = {
     saving: 'Salvataggio…',
     saved: 'Modifiche salvate.',
   },
+  elements: {
+    title: 'Elementi',
+    subtitle: 'Cosa si vota: nome, immagine obbligatoria e video opzionale.',
+    addTitle: 'Nuovo elemento',
+    editTitle: 'Modifica elemento',
+    empty: 'Nessun elemento ancora. Aggiungi il primo.',
+    name: 'Nome',
+    namePlaceholder: 'es. La canzone di Mario',
+    description: 'Descrizione',
+    imageUrl: 'URL immagine',
+    videoUrl: 'URL video YouTube',
+    videoHint: 'Il video si carica solo quando lo apri.',
+    customValues: 'Valori dei campi',
+    userId: 'Utente collegato',
+    userIdHint: 'Facoltativo: serve al controllo dell\'auto-voto.',
+    create: 'Aggiungi elemento',
+    update: 'Salva elemento',
+    cancel: 'Annulla modifica',
+    edit: 'Modifica',
+    delete: 'Elimina',
+    moveUp: 'Sposta su',
+    moveDown: 'Sposta giù',
+    playVideo: 'Riproduci video',
+    videoTitle: 'Video dell\'elemento',
+  },
+  fields: {
+    title: 'Campi personalizzati',
+    subtitle: 'Fino a 10 campi per torneo. La chiave identifica il valore, l\'etichetta è ciò che vedono gli utenti.',
+    empty: 'Nessun campo definito.',
+    limit: 'Hai raggiunto il limite di 10 campi personalizzati.',
+    key: 'Chiave',
+    keyPlaceholder: 'es. genere',
+    label: 'Etichetta',
+    labelPlaceholder: 'es. Genere',
+    type: 'Tipo',
+    add: 'Aggiungi campo',
+    adding: 'Aggiunta…',
+    delete: 'Elimina campo',
+    types: {
+      text: 'Testo',
+      number: 'Numero',
+      url: 'URL',
+      date: 'Data',
+    },
+  },
   errors: {
     invalid_credentials: 'Username o password non validi.',
+    invalid_values: 'I valori dei campi non rispettano il tipo dichiarato.',
+    unknown_field: 'Un valore usa un campo che non esiste nel torneo.',
+    field_limit_reached: 'Hai raggiunto il limite di 10 campi personalizzati.',
+    duplicate_field_key: 'Esiste già un campo con questa chiave.',
+    element_not_found: 'Elemento o campo non trovato.',
     account_disabled: 'Account disattivato. Contatta un amministratore.',
     rate_limited: 'Troppi tentativi di accesso. Riprova tra 15 minuti.',
     invalid_request: 'Inserisci username e password validi.',
@@ -146,4 +196,18 @@ export function authErrorMessage(code: string | undefined): string {
 
 export function adminUsersErrorMessage(code: string | undefined): string {
   return (code && ADMIN_USERS_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const ELEMENT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  invalid_values: strings.errors.invalid_values,
+  unknown_field: strings.errors.unknown_field,
+  field_limit_reached: strings.errors.field_limit_reached,
+  duplicate_field_key: strings.errors.duplicate_field_key,
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.element_not_found,
+}
+
+export function elementsErrorMessage(code: string | undefined): string {
+  return (code && ELEMENT_ERROR_MESSAGES[code]) || strings.errors.unknown
 }
