@@ -16,7 +16,7 @@ const NOW = '2026-11-10T10:00:00.000Z'
 function createEnv() {
   const created = createTestEnvironment()
   created.db.exec(`
-    CREATE TABLE duel_votes (
+    CREATE TABLE IF NOT EXISTS duel_votes (
       match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
       voter_id TEXT NOT NULL REFERENCES users(id),
       side TEXT NOT NULL CHECK (side IN ('a','b','abstain')),

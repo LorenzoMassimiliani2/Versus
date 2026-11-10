@@ -254,6 +254,28 @@ export const strings = {
       sequential: 'Sequenziale',
     },
   },
+  voting: {
+    title: 'Vota il duello',
+    open: 'Vota la fase',
+    subtitle: 'Scegli un lato per ogni sfida e investi i tuoi crediti.',
+    back: 'Torna al torneo',
+    loading: 'Caricamento della scheda…',
+    empty: 'Nessuna sfida da votare.',
+    closed: 'La fase non è aperta: non puoi più votare.',
+    balance: (credits: number) => `Saldo crediti: ${credits}`,
+    maxPerMatch: (credits: number) => `Massimo ${credits} crediti per sfida`,
+    completion: (voted: number, total: number) => `${voted}/${total} sfide votate`,
+    credits: 'Crediti',
+    decrease: 'Riduci crediti',
+    increase: 'Aumenta crediti',
+    abstain: 'Astieniti',
+    selectSide: (side: string) => `Scegli ${side}`,
+    save: 'Salva voto',
+    saving: 'Salvataggio…',
+    remove: 'Rimuovi voto',
+    saved: 'Voto salvato.',
+    offline: 'Sei offline: il voto richiede una connessione.',
+  },
   planPreview: {
     title: 'Anteprima del piano',
     subtitle: 'Errori bloccanti, avvisi e struttura calcolata prima della pubblicazione.',
@@ -473,4 +495,19 @@ const PHASES_ERROR_MESSAGES: Record<string, string> = {
 
 export function phasesErrorMessage(code: string | undefined): string {
   return (code && PHASES_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const VOTE_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  invalid_vote: 'Il voto non è valido.',
+  credits_exceeded: 'I crediti superano il limite o il saldo disponibile.',
+  credits_on_abstain: 'L astensione non accetta crediti.',
+  phase_not_open: 'La fase non è aperta: il voto è chiuso.',
+  match_not_open: 'La sfida non è aperta: il voto è chiuso.',
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.phase_not_found,
+}
+
+export function voteErrorMessage(code: string | undefined): string {
+  return (code && VOTE_ERROR_MESSAGES[code]) || strings.errors.unknown
 }

@@ -10,11 +10,13 @@ import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
 import { strings, tournamentStatusLabel } from '@/lib/strings'
 import { useElementsStore } from '@/stores/elements'
+import { usePhasesStore } from '@/stores/phases'
 import { useTournamentsStore } from '@/stores/tournaments'
 
 const route = useRoute()
 const tournaments = useTournamentsStore()
 const elements = useElementsStore()
+const phases = usePhasesStore()
 
 const tournamentId = computed(() => String(route.params.id))
 const isOrganizer = computed(
@@ -22,6 +24,11 @@ const isOrganizer = computed(
 )
 const isOwner = computed(() => tournaments.current?.role === 'owner')
 const participantsEditable = computed(() => tournaments.current?.status === 'draft')
+const openVotePhases = computed(() =>
+  isOrganizer.value
+    ? []
+    : phases.phases.filter((phase) => phase.status === 'open' && phase.voteType === 'duel'),
+)
 
 const editName = ref('')
 const editDescription = ref('')
@@ -34,6 +41,7 @@ onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
   syncForm()
   if (isOrganizer.value) await elements.load(tournamentId.value)
+  else await phases.load(tournamentId.value)
 })
 
 function syncForm(): void {
@@ -105,6 +113,19 @@ async function submitEdit(): Promise<void> {
           :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
         >
           {{ strings.tournaments.publishWizard }}
+        </RouterLink>
+      </div>
+
+      <div v-if="openVotePhases.length > 0" class="space-y-2">
+        <h2 class="text-base font-semibold">{{ strings.voting.title }}</h2>
+        <RouterLink
+          v-for="phase in openVotePhases"
+          :id="`vote-phase-${phase.id}`"
+          :key="phase.id"
+          class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+          :to="{ name: 'phase-vote', params: { id: tournamentId, phaseId: phase.id } }"
+        >
+          {{ strings.voting.open }} · {{ phase.name }}
         </RouterLink>
       </div>
 

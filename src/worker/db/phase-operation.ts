@@ -97,6 +97,20 @@ export function listPhaseMatches(env: Env, phaseId: string): Promise<MatchRecord
     .then((result) => result.results)
 }
 
+export function findPhaseMatch(
+  env: Env,
+  phaseId: string,
+  matchId: string,
+): Promise<MatchRecord | null> {
+  return env.DB.prepare(
+    `SELECT id, phase_id, group_id, round, position, element_a_id, element_b_id,
+       winner_element_id, status, closed_at
+     FROM matches WHERE phase_id = ? AND id = ?`,
+  )
+    .bind(phaseId, matchId)
+    .first<MatchRecord>()
+}
+
 /** Risultato piu recente della fase, se la fase e' stata chiusa. */
 export function findLatestPhaseResult(
   env: Env,
