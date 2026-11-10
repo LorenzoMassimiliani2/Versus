@@ -13,7 +13,7 @@
       "binding": "DB",
       "database_name": "versus-db",
       // Sostituire con l'id restituito da `npx wrangler d1 create versus-db`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "18e08c81-31da-479e-ab67-0365d9945b70",
       "migrations_dir": "migrations"
     }
   ]
