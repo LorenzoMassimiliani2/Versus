@@ -4,7 +4,9 @@ import { RouterLink, useRoute } from 'vue-router'
 
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
-import { strings, tournamentRoleLabel, tournamentStatusLabel } from '@/lib/strings'
+import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
+import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
+import { strings, tournamentStatusLabel } from '@/lib/strings'
 import { useElementsStore } from '@/stores/elements'
 import { useTournamentsStore } from '@/stores/tournaments'
 
@@ -16,6 +18,8 @@ const tournamentId = computed(() => String(route.params.id))
 const isOrganizer = computed(
   () => tournaments.current?.role === 'owner' || tournaments.current?.role === 'co_organizer',
 )
+const isOwner = computed(() => tournaments.current?.role === 'owner')
+const participantsEditable = computed(() => tournaments.current?.status === 'draft')
 
 const editName = ref('')
 const editDescription = ref('')
@@ -72,7 +76,7 @@ async function submitEdit(): Promise<void> {
             {{ tournamentStatusLabel(tournaments.current.status) }}
           </span>
           <span class="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {{ tournamentRoleLabel(tournaments.current.role) }}
+            {{ strings.tournaments.role[tournaments.current.role] }}
           </span>
         </div>
         <p class="text-sm text-muted-foreground">
@@ -103,23 +107,14 @@ async function submitEdit(): Promise<void> {
         </p>
       </div>
 
-      <div v-if="tournaments.current.organizers.length > 0" class="space-y-2">
-        <h2 class="text-base font-semibold">{{ strings.tournamentDetail.organizers }}</h2>
-        <ul class="space-y-1">
-          <li
-            v-for="organizer in tournaments.current.organizers"
-            :key="organizer.userId"
-            class="flex flex-wrap items-center gap-2 text-sm"
-          >
-            <span class="font-medium">{{ organizer.username }}</span>
-            <span class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-              {{ tournamentRoleLabel(organizer.role) }}
-            </span>
-          </li>
-        </ul>
-      </div>
+      <OrganizersPanel
+        v-if="tournaments.current.organizers.length > 0"
+        :tournament-id="tournamentId"
+        :can-manage="isOwner"
+      />
 
       <template v-if="isOrganizer">
+        <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
         <CustomFieldsPanel :tournament-id="tournamentId" />
         <ElementsPanel :tournament-id="tournamentId" />
       </template>

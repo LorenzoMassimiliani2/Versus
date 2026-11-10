@@ -4,6 +4,7 @@ import { apiError } from './http/json'
 import { handleLogin, handleLogout, handleMe } from './routes/auth'
 import { handleElementsRoute } from './routes/elements'
 import { handleHealth } from './routes/health'
+import { handleParticipantsRoute } from './routes/participants'
 import { handleTournamentsRoute } from './routes/tournaments'
 import { handleUsersRoute } from './routes/users'
 
@@ -39,6 +40,9 @@ export default {
 
     const tournamentsResponse = await handleTournamentsRoute(request, env, auth)
     if (tournamentsResponse) return tournamentsResponse
+
+    const participantsResponse = await handleParticipantsRoute(request, env, auth)
+    if (participantsResponse) return participantsResponse
 
     const elementsResponse = await handleElementsRoute(request, env, auth)
     if (elementsResponse) return elementsResponse
