@@ -41,8 +41,8 @@ describe('BottomTabs', () => {
   it('mostra Partecipo e Organizzo e segue la query tab', async () => {
     const { wrapper, router } = await mountTabs()
 
-    expect(wrapper.get('#bottom-tab-participating').text()).toBe('Partecipo')
-    expect(wrapper.get('#bottom-tab-organizing').text()).toBe('Organizzo')
+    expect(wrapper.get('#bottom-tab-participating').text()).toBe('In gara')
+    expect(wrapper.get('#bottom-tab-organizing').text()).toBe('In regia')
     expect(wrapper.get('#bottom-tab-participating').attributes('aria-current')).toBe('page')
     expect(wrapper.find('#bottom-tab-users').exists()).toBe(false)
 
