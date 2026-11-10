@@ -151,7 +151,7 @@ export interface NewMatch {
   elementAId: string | null
   elementBId: string | null
   winnerElementId: string | null
-  status: 'open' | 'bye'
+  status: 'pending' | 'open' | 'bye'
   closedAt: string | null
 }
 
@@ -239,6 +239,7 @@ export function deletePhaseOperationStatements(
   phaseId: string,
 ): D1PreparedStatement[] {
   return [
+    env.DB.prepare('DELETE FROM phase_targets WHERE phase_id = ?').bind(phaseId),
     env.DB.prepare('DELETE FROM matches WHERE phase_id = ?').bind(phaseId),
     env.DB.prepare(
       'DELETE FROM group_members WHERE group_id IN (SELECT id FROM groups WHERE phase_id = ?)',

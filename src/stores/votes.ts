@@ -38,12 +38,28 @@ export type BallotTargetVote =
   | { kind: 'ranking'; assignments: RankingAssignment[] }
   | { kind: 'pick'; elementId: string }
 
+export type TargetStatus = 'pending' | 'open' | 'completed'
+
 export interface BallotTarget {
   id: string
   name: string
   elements: BallotElement[]
   vote: BallotTargetVote | null
+  status?: TargetStatus
   points: { scale: number[]; used: number[]; remaining: number[] }
+}
+
+export interface BallotTargetProgress {
+  id: string
+  name: string
+  position: number
+  status: TargetStatus
+  voted: boolean
+}
+
+export interface BallotProgress {
+  currentTargetId: string | null
+  targets: BallotTargetProgress[]
 }
 
 export interface Ballot {
@@ -60,6 +76,8 @@ export interface Ballot {
   matches: BallotMatch[]
   targets: BallotTarget[]
   completion: { voted: number; total: number }
+  votingMode: 'simultaneous' | 'sequential'
+  progress: BallotProgress | null
 }
 
 interface ErrorResponse {

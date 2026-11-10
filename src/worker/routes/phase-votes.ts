@@ -11,6 +11,7 @@ import {
   validateRankingBallot,
 } from '../../domain/ballot-vote'
 import type { RankingAssignment } from '../../domain/ranking'
+import { parseTournamentSettings } from '../../domain/tournament-settings'
 import { findBallotVote, listBallotVotesForVoter } from '../db/ballot-votes'
 import { listElements, type ElementRecord } from '../db/elements'
 import {
@@ -30,8 +31,11 @@ import {
   type MatchRecord,
 } from '../db/phase-operation'
 import { findPhaseById, type PhaseRecord } from '../db/phases'
+import { findPhaseTarget, listPhaseTargets } from '../db/phase-targets'
+import { findTournamentById } from '../db/tournaments'
 import { apiError, json } from '../http/json'
 import { phaseConfig } from '../phase-open'
+import { matchTargetId, maybeAdvanceSequential } from '../phase-targets'
 
 interface BallotElement {
   elementId: string
@@ -65,7 +69,21 @@ interface BallotTarget {
   name: string
   elements: BallotElement[]
   vote: SerialisedBallotVote | null
+  status: 'pending' | 'open' | 'completed'
   points: { scale: number[]; used: number[]; remaining: number[] }
+}
+
+interface BallotTargetProgress {
+  id: string
+  name: string
+  position: number
+  status: 'pending' | 'open' | 'completed'
+  voted: boolean
+}
+
+interface BallotProgress {
+  currentTargetId: string | null
+  targets: BallotTargetProgress[]
 }
 
 interface BallotBody {
@@ -82,6 +100,8 @@ interface BallotBody {
   matches: BallotMatch[]
   targets: BallotTarget[]
   completion: { voted: number; total: number }
+  votingMode: 'simultaneous' | 'sequential'
+  progress: BallotProgress | null
 }
 
 const DEFAULT_RANKING_SCALE = [12, 10, 8, 6, 4, 2, 1]
@@ -205,6 +225,9 @@ async function loadBallot(
   const votesByMatch = new Map(votes.map((vote) => [vote.match_id, vote]))
   const visible = matches.filter((match) => match.status !== 'bye')
   const config = phaseConfig(phase)
+  const sequential = config.votingMode === 'sequential'
+  const targetRows = sequential ? await listPhaseTargets(env, phase.id) : []
+  const targetRowById = new Map(targetRows.map((row) => [row.target_id, row]))
   const body: BallotBody = {
     phase: {
       id: phase.id,
@@ -234,9 +257,41 @@ async function loadBallot(
       voted: visible.filter((match) => votesByMatch.has(match.id)).length,
       total: visible.length,
     },
+    votingMode: config.votingMode,
+    progress: null,
   }
 
-  if (phase.vote_type === 'duel') return body
+  function statusOf(targetId: string): BallotTarget['status'] {
+    return targetRowById.get(targetId)?.status ?? 'open'
+  }
+
+  function currentTargetId(): string | null {
+    return targetRows.find((row) => row.status === 'open')?.target_id ?? null
+  }
+
+  if (phase.vote_type === 'duel') {
+    if (sequential) {
+      body.progress = {
+        currentTargetId: currentTargetId(),
+        targets: targetRows.map((row) => {
+          const voted =
+            phase.formula === 'elimination'
+              ? votesByMatch.has(row.target_id)
+              : visible
+                  .filter((match) => match.group_id === row.target_id)
+                  .every((match) => votesByMatch.has(match.id))
+          return {
+            id: row.target_id,
+            name: row.name,
+            position: row.position,
+            status: row.status,
+            voted,
+          }
+        }),
+      }
+    }
+    return body
+  }
 
   const [targets, ballots] = await Promise.all([
     loadBallotTargetData(env, phase),
@@ -265,6 +320,7 @@ async function loadBallot(
       name: target.name,
       elements: target.elements,
       vote,
+      status: statusOf(target.id),
       points: {
         scale,
         used,
@@ -276,6 +332,19 @@ async function loadBallot(
   body.completion = {
     voted: body.targets.filter((target) => target.vote !== null).length,
     total: body.targets.length,
+  }
+
+  if (sequential) {
+    body.progress = {
+      currentTargetId: currentTargetId(),
+      targets: targetRows.map((row) => ({
+        id: row.target_id,
+        name: row.name,
+        position: row.position,
+        status: row.status,
+        voted: ballotsByTarget.has(row.target_id),
+      })),
+    }
   }
   return body
 }
@@ -330,6 +399,33 @@ function voteTimestampStatements(
   ]
 }
 
+async function targetOpenError(
+  env: Env,
+  phase: PhaseRecord,
+  config: ReturnType<typeof phaseConfig>,
+  targetId: string,
+): Promise<Response | null> {
+  if (config.votingMode !== 'sequential') return null
+  const target = await findPhaseTarget(env, phase.id, targetId)
+  if (!target || target.status !== 'open') return apiError(409, 'target_not_open')
+  return null
+}
+
+/** Elementi collegati al votante, quando il torneo vieta l'auto-voto. */
+async function selfVoteElementIds(
+  env: Env,
+  phase: PhaseRecord,
+  userId: string,
+): Promise<Set<string>> {
+  const tournament = await findTournamentById(env, phase.tournament_id)
+  if (!tournament) return new Set()
+  if (parseTournamentSettings(tournament.settings).selfVoteAllowed) return new Set()
+  const elements = await listElements(env, phase.tournament_id)
+  return new Set(
+    elements.filter((element) => element.user_id === userId).map((element) => element.id),
+  )
+}
+
 async function saveVoteHandler(
   request: Request,
   env: Env,
@@ -347,12 +443,18 @@ async function saveVoteHandler(
   if (context.phase.status !== 'open') return apiError(409, 'phase_not_open')
   if (match.status !== 'open') return apiError(409, 'match_not_open')
 
+  const config = phaseConfig(context.phase)
+  const targetId = matchTargetId(context.phase, { id: match.id, groupId: match.group_id })
+  if (targetId) {
+    const denied = await targetOpenError(env, context.phase, config, targetId)
+    if (denied) return denied
+  }
+
   const existing = await findDuelVote(env, match.id, auth.user.id)
   const amounts = await listCreditAmounts(env, context.phase.id, auth.user.id)
   const balance = context.voter.credits_budget + creditBalance(amounts)
   const refundable = existing?.credits ?? 0
 
-  const config = phaseConfig(context.phase)
   const validation = validateDuelVote(await readJson(request), {
     budget: context.voter.credits_budget,
     maxPerMatch: config.credits.maxPerMatch,
@@ -363,6 +465,14 @@ async function saveVoteHandler(
   const vote = validation.vote
   if (vote.side === 'a' && !match.element_a_id) return apiError(422, 'invalid_vote')
   if (vote.side === 'b' && !match.element_b_id) return apiError(422, 'invalid_vote')
+
+  const ownElements = await selfVoteElementIds(env, context.phase, auth.user.id)
+  if (
+    (vote.side === 'a' && match.element_a_id && ownElements.has(match.element_a_id)) ||
+    (vote.side === 'b' && match.element_b_id && ownElements.has(match.element_b_id))
+  ) {
+    return apiError(422, 'self_vote_forbidden')
+  }
 
   if (existing && existing.side === vote.side && existing.credits === vote.credits) {
     return json(await loadBallot(env, context.phase, context.voter))
@@ -430,6 +540,7 @@ async function saveVoteHandler(
   )
 
   await env.DB.batch(statements)
+  await maybeAdvanceSequential(env, context.phase, config, now)
   return json(await loadBallot(env, context.phase, context.voter))
 }
 
@@ -448,6 +559,12 @@ async function deleteVoteHandler(
   if (!match) return apiError(404, 'not_found')
   if (context.phase.status !== 'open') return apiError(409, 'phase_not_open')
   if (match.status !== 'open') return apiError(409, 'match_not_open')
+
+  const targetId = matchTargetId(context.phase, { id: match.id, groupId: match.group_id })
+  if (targetId) {
+    const denied = await targetOpenError(env, context.phase, phaseConfig(context.phase), targetId)
+    if (denied) return denied
+  }
 
   const existing = await findDuelVote(env, match.id, auth.user.id)
   if (!existing) return json(await loadBallot(env, context.phase, context.voter))
@@ -530,6 +647,10 @@ async function saveBallotHandler(
   const target = await findBallotTarget(env, context.phase, body.targetId)
   if (!target) return apiError(422, 'invalid_target')
 
+  const config = phaseConfig(context.phase)
+  const denied = await targetOpenError(env, context.phase, config, target.id)
+  if (denied) return denied
+
   const validation =
     body.kind === 'ranking'
       ? validateRankingBallot(body.payload, {
@@ -541,6 +662,16 @@ async function saveBallotHandler(
           allowedElementIds: target.elementIds,
         })
   if (!validation.ok) return apiError(422, validation.error)
+
+  const ownElements = await selfVoteElementIds(env, context.phase, auth.user.id)
+  if (ownElements.size > 0) {
+    const vote = validation.vote
+    const votesSelf =
+      'assignments' in vote
+        ? vote.assignments.some((assignment) => ownElements.has(assignment.elementId))
+        : ownElements.has(vote.elementId)
+    if (votesSelf) return apiError(422, 'self_vote_forbidden')
+  }
 
   const payload = JSON.stringify(validation.vote)
   const existing = await findBallotVote(
@@ -587,6 +718,7 @@ async function saveBallotHandler(
   ]
 
   await env.DB.batch(statements)
+  await maybeAdvanceSequential(env, context.phase, config, now)
   return json(await loadBallot(env, context.phase, context.voter))
 }
 
@@ -606,6 +738,14 @@ async function deleteBallotHandler(
 
   const target = await findBallotTarget(env, context.phase, targetId)
   if (!target) return apiError(404, 'not_found')
+
+  const denied = await targetOpenError(
+    env,
+    context.phase,
+    phaseConfig(context.phase),
+    target.id,
+  )
+  if (denied) return denied
 
   const existing = await findBallotVote(env, context.phase.id, target.id, auth.user.id)
   if (!existing) return json(await loadBallot(env, context.phase, context.voter))

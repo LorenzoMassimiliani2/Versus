@@ -15,7 +15,9 @@ import {
   type NewMatch,
 } from './db/phase-operation'
 import { findPhaseById, type PhaseRecord } from './db/phases'
+import { insertPhaseTargetStatements } from './db/phase-targets'
 import { findTournamentById } from './db/tournaments'
+import { matchTargetId, sequentialTargetSpecs } from './phase-targets'
 import { applyAdvance, type AdvanceMatch } from '../domain/advance'
 import { applyRepechage } from '../domain/repechage'
 import { repechageCandidatesFromResults } from '../domain/phase-results'
@@ -319,6 +321,7 @@ export async function openPendingPhase(
   }
 
   const config = phaseConfig(phase)
+  const sequential = config.votingMode === 'sequential'
   const plan = planOpening(
     ordered,
     {
@@ -342,17 +345,62 @@ export async function openPendingPhase(
     memberIds: group.memberIds,
   }))
 
-  const matches: NewMatch[] = plan.matches.map((match) => ({
-    id: uuidv7(options.now),
-    groupId: match.groupIndex === null ? null : groupIds[match.groupIndex]!,
-    round: match.round,
-    position: match.position,
-    elementAId: match.elementAId,
-    elementBId: match.elementBId,
-    winnerElementId: match.winnerElementId,
-    status: match.status,
-    closedAt: match.status === 'bye' ? timestamp : null,
-  }))
+  const matchIds = plan.matches.map((_, index) => uuidv7(options.now + index))
+  const targets = sequential
+    ? sequentialTargetSpecs({
+        phase: { id: phase.id, name: phase.name, formula: phase.formula },
+        groups,
+        matches: plan.matches.map((match, index) => ({
+          id: matchIds[index]!,
+          groupId: match.groupIndex === null ? null : groups[match.groupIndex]!.id,
+          round: match.round,
+          position: match.position,
+          status: match.status,
+          elementAId: match.elementAId,
+          elementBId: match.elementBId,
+        })),
+        elementNames: new Map(elements.map((element) => [element.id, element.name])),
+      })
+    : []
+  const firstTargetId = targets[0]?.targetId ?? null
+
+  const matches: NewMatch[] = plan.matches.map((match, index) => {
+    const groupId = match.groupIndex === null ? null : groups[match.groupIndex]!.id
+    const matchId = matchIds[index]!
+    let status: NewMatch['status'] = match.status
+    if (status !== 'bye' && sequential) {
+      const targetId = matchTargetId(
+        { id: phase.id, formula: phase.formula },
+        { id: matchId, groupId },
+      )
+      status = targetId === firstTargetId ? 'open' : 'pending'
+    }
+    return {
+      id: matchId,
+      groupId,
+      round: match.round,
+      position: match.position,
+      elementAId: match.elementAId,
+      elementBId: match.elementBId,
+      winnerElementId: match.winnerElementId,
+      status,
+      closedAt: match.status === 'bye' ? timestamp : null,
+    }
+  })
+
+  const targetStatements = sequential
+    ? insertPhaseTargetStatements(
+        env,
+        phase.id,
+        targets.map((target, index) => ({
+          targetId: target.targetId,
+          name: target.name,
+          position: index + 1,
+          status: index === 0 ? 'open' : 'pending',
+          openedAt: index === 0 ? timestamp : null,
+        })),
+      )
+    : []
 
   const claim = await env.DB.prepare(
     `UPDATE phases SET status = 'open', opened_at = ?, updated_at = ?
@@ -371,6 +419,7 @@ export async function openPendingPhase(
       groups,
       matches,
     }),
+    ...targetStatements,
     env.DB.prepare(
       `UPDATE tournaments SET status = 'running', started_at = COALESCE(started_at, ?), updated_at = ?
        WHERE id = ? AND status IN ('published','running')`,
