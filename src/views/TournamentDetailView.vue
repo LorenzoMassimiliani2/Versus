@@ -141,8 +141,6 @@ async function submitEdit(): Promise<void> {
 
 <template>
   <section class="space-y-6">
-    <BackLink :to="{ name: 'home' }" :label="strings.tournamentDetail.back" />
-
     <p v-if="tournaments.error && !tournaments.current" class="text-sm text-destructive" role="alert">
       {{ tournaments.error }}
     </p>
