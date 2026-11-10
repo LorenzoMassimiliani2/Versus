@@ -1,7 +1,7 @@
 ---
 id: TICKET-0009
 title: Wizard, pubblicazione e limiti dei tornei attivi
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0006, TICKET-0008]
 blocks: [TICKET-0015, TICKET-0031]
