@@ -1,7 +1,7 @@
 ---
 id: TICKET-0004
 title: Creare e gestire un torneo in bozza
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0001, TICKET-0002, TICKET-0003]
 blocks: [TICKET-0005, TICKET-0006, TICKET-0007]

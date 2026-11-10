@@ -1,7 +1,7 @@
 ---
 id: TICKET-0005
 title: Elementi con media e campi personalizzati
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0004]
 blocks: [TICKET-0007, TICKET-0008]
