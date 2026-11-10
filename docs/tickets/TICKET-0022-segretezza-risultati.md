@@ -1,7 +1,7 @@
 ---
 id: TICKET-0022
 title: Filtrare i risultati per segretezza
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0021]
 blocks: [TICKET-0024, TICKET-0026]

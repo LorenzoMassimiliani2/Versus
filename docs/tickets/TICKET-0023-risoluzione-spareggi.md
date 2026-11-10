@@ -1,7 +1,7 @@
 ---
 id: TICKET-0023
 title: Risolvere manualmente uno spareggio
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0016, TICKET-0021]
 blocks: [TICKET-0024]
