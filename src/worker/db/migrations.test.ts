@@ -579,3 +579,47 @@ describe('migrazione 0006', () => {
     db.close()
   })
 })
+
+
+describe('migrazione 0008', () => {
+  function seedPhase(db: DatabaseSync): void {
+    seedTournament(db, 't1', 'torneo-di-prova')
+    seedUser(db, 'u1', 'alice')
+    db.prepare(
+      `INSERT INTO phases (id, tournament_id, position, name, formula, vote_type, config, advance, created_at, updated_at)
+       VALUES ('p1', 't1', 1, 'Finale', 'ranking', 'ranking', '{}', '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+  }
+
+  it('crea ballot_votes con chiave composta e vincolo sul kind', () => {
+    const db = migratedDatabase()
+    seedPhase(db)
+
+    const insert = db.prepare(
+      `INSERT INTO ballot_votes (phase_id, target_id, voter_id, kind, payload, created_at, updated_at)
+       VALUES ('p1', 'p1', 'u1', ?, '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    )
+    insert.run('ranking')
+    expect(() => insert.run('ranking')).toThrow()
+    expect(() => insert.run('duel')).toThrow()
+    db.close()
+  })
+
+  it('elimina le schede a cascata con la fase e crea l indice', () => {
+    const db = migratedDatabase()
+    seedPhase(db)
+    db.prepare(
+      `INSERT INTO ballot_votes (phase_id, target_id, voter_id, kind, payload, created_at, updated_at)
+       VALUES ('p1', 'p1', 'u1', 'pick', '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
+    ).map((row) => row.name)
+    expect(indexes).toContain('idx_ballot_votes_phase')
+
+    db.prepare("DELETE FROM phases WHERE id = 'p1'").run()
+    expect(db.prepare('SELECT COUNT(*) AS count FROM ballot_votes').get()).toEqual({ count: 0 })
+    db.close()
+  })
+})

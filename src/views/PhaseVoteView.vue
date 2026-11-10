@@ -3,8 +3,10 @@ import { computed, onMounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import DuelVoteCard from '@/components/tournament/DuelVoteCard.vue'
+import PickBallotCard from '@/components/tournament/PickBallotCard.vue'
+import RankingBallotCard from '@/components/tournament/RankingBallotCard.vue'
 import { strings } from '@/lib/strings'
-import { useVotesStore, type DuelSide } from '@/stores/votes'
+import { useVotesStore, type DuelSide, type RankingAssignment } from '@/stores/votes'
 
 const route = useRoute()
 const votes = useVotesStore()
@@ -13,6 +15,20 @@ const tournamentId = computed(() => String(route.params.id))
 const phaseId = computed(() => String(route.params.phaseId))
 const ballot = computed(() => votes.ballot)
 const phaseOpen = computed(() => ballot.value?.phase.status === 'open')
+const voteType = computed(() => ballot.value?.phase.voteType)
+const isDuel = computed(() => voteType.value === 'duel')
+
+const title = computed(() => {
+  if (voteType.value === 'ranking') return strings.voting.titleRanking
+  if (voteType.value === 'pick') return strings.voting.titlePick
+  return strings.voting.title
+})
+
+const subtitle = computed(() => {
+  if (voteType.value === 'ranking') return strings.voting.subtitleRanking
+  if (voteType.value === 'pick') return strings.voting.subtitlePick
+  return strings.voting.subtitle
+})
 
 onMounted(async () => {
   await votes.load(phaseId.value)
@@ -24,6 +40,21 @@ async function save(matchId: string, vote: { side: DuelSide; credits: number }):
 
 async function remove(matchId: string): Promise<void> {
   await votes.remove(phaseId.value, matchId)
+}
+
+async function saveRanking(
+  targetId: string,
+  assignments: RankingAssignment[],
+): Promise<void> {
+  await votes.saveBallot(phaseId.value, targetId, 'ranking', { assignments })
+}
+
+async function savePick(targetId: string, elementId: string): Promise<void> {
+  await votes.saveBallot(phaseId.value, targetId, 'pick', { elementId })
+}
+
+async function removeTarget(targetId: string): Promise<void> {
+  await votes.removeBallot(phaseId.value, targetId)
 }
 </script>
 
@@ -44,14 +75,15 @@ async function remove(matchId: string): Promise<void> {
 
     <template v-if="ballot">
       <div class="space-y-2">
-        <h1 class="text-2xl font-semibold tracking-tight">{{ strings.voting.title }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{{ title }}</h1>
         <p class="text-sm text-muted-foreground">{{ ballot.phase.name }}</p>
+        <p class="text-sm text-muted-foreground">{{ subtitle }}</p>
         <p v-if="!phaseOpen" class="rounded-md border border-border bg-muted/40 p-3 text-sm">
           {{ strings.voting.closed }}
         </p>
       </div>
 
-      <dl class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+      <dl v-if="isDuel" class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
         <div class="rounded-md border border-border p-3">
           <dt class="text-muted-foreground">{{ strings.voting.credits }}</dt>
           <dd id="vote-balance" class="text-base font-semibold">
@@ -70,26 +102,68 @@ async function remove(matchId: string): Promise<void> {
         </div>
       </dl>
 
+      <dl v-else class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+        <div class="rounded-md border border-border p-3">
+          <dt class="text-muted-foreground">{{ strings.voting.targets }}</dt>
+          <dd class="text-base font-semibold">{{ ballot.targets.length }}</dd>
+        </div>
+        <div class="rounded-md border border-border p-3">
+          <dt class="text-muted-foreground">{{ strings.voting.completionLabel }}</dt>
+          <dd id="vote-completion" class="text-base font-semibold">
+            {{ strings.voting.targetCompletion(ballot.completion.voted, ballot.completion.total) }}
+          </dd>
+        </div>
+      </dl>
+
       <p v-if="votes.saved" class="text-sm text-muted-foreground" role="status">
         {{ strings.voting.saved }}
       </p>
 
-      <p v-if="ballot.matches.length === 0" class="text-sm text-muted-foreground">
-        {{ strings.voting.empty }}
-      </p>
+      <template v-if="isDuel">
+        <p v-if="ballot.matches.length === 0" class="text-sm text-muted-foreground">
+          {{ strings.voting.empty }}
+        </p>
 
-      <div class="space-y-4">
-        <DuelVoteCard
-          v-for="match in ballot.matches"
-          :key="match.id"
-          :match="match"
-          :max-credits="ballot.maxPerMatch"
-          :disabled="!phaseOpen"
-          :saving="votes.saving"
-          @save="(vote) => save(match.id, vote)"
-          @remove="remove(match.id)"
-        />
-      </div>
+        <div class="space-y-4">
+          <DuelVoteCard
+            v-for="match in ballot.matches"
+            :key="match.id"
+            :match="match"
+            :max-credits="ballot.maxPerMatch"
+            :disabled="!phaseOpen"
+            :saving="votes.saving"
+            @save="(vote) => save(match.id, vote)"
+            @remove="remove(match.id)"
+          />
+        </div>
+      </template>
+
+      <template v-else>
+        <p v-if="ballot.targets.length === 0" class="text-sm text-muted-foreground">
+          {{ strings.voting.empty }}
+        </p>
+
+        <div class="space-y-4">
+          <template v-for="target in ballot.targets" :key="target.id">
+            <RankingBallotCard
+              v-if="voteType === 'ranking'"
+              :target="target"
+              :disabled="!phaseOpen"
+              :saving="votes.saving"
+              @save="(assignments) => saveRanking(target.id, assignments)"
+              @remove="removeTarget(target.id)"
+            />
+            <PickBallotCard
+              v-else-if="voteType === 'pick'"
+              :target="target"
+              :disabled="!phaseOpen"
+              :saving="votes.saving"
+              @save="(elementId) => savePick(target.id, elementId)"
+              @remove="removeTarget(target.id)"
+            />
+          </template>
+        </div>
+      </template>
     </template>
   </section>
 </template>

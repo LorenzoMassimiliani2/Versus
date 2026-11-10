@@ -27,6 +27,25 @@ export interface BallotMatch {
   vote: BallotVote | null
 }
 
+export type BallotKind = 'ranking' | 'pick'
+
+export interface RankingAssignment {
+  elementId: string
+  points: number
+}
+
+export type BallotTargetVote =
+  | { kind: 'ranking'; assignments: RankingAssignment[] }
+  | { kind: 'pick'; elementId: string }
+
+export interface BallotTarget {
+  id: string
+  name: string
+  elements: BallotElement[]
+  vote: BallotTargetVote | null
+  points: { scale: number[]; used: number[]; remaining: number[] }
+}
+
 export interface Ballot {
   phase: {
     id: string
@@ -39,6 +58,7 @@ export interface Ballot {
   maxPerMatch: number
   balance: number
   matches: BallotMatch[]
+  targets: BallotTarget[]
   completion: { voted: number; total: number }
 }
 
@@ -93,6 +113,58 @@ export const useVotesStore = defineStore('votes', {
 
     async remove(phaseId: string, matchId: string): Promise<boolean> {
       return this.mutate(phaseId, matchId, 'DELETE')
+    },
+
+    async saveBallot(
+      phaseId: string,
+      targetId: string,
+      kind: BallotKind,
+      payload: unknown,
+    ): Promise<boolean> {
+      return this.mutateBallot(phaseId, targetId, 'POST', { targetId, kind, payload })
+    },
+
+    async removeBallot(phaseId: string, targetId: string): Promise<boolean> {
+      return this.mutateBallot(phaseId, targetId, 'DELETE')
+    },
+
+    async mutateBallot(
+      phaseId: string,
+      targetId: string,
+      method: 'POST' | 'DELETE',
+      body?: unknown,
+    ): Promise<boolean> {
+      this.saving = true
+      this.error = null
+      this.saved = false
+      try {
+        const response = await fetch(
+          method === 'POST'
+            ? `/api/phases/${encodeURIComponent(phaseId)}/ballots`
+            : `/api/phases/${encodeURIComponent(phaseId)}/ballots/${encodeURIComponent(targetId)}`,
+          {
+            method,
+            credentials: 'same-origin',
+            headers: {
+              Accept: 'application/json',
+              ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          },
+        )
+        if (!response.ok) {
+          this.error = voteErrorMessage(await errorCode(response))
+          return false
+        }
+        this.ballot = (await response.json()) as Ballot
+        this.saved = true
+        return true
+      } catch {
+        this.error = strings.errors.network
+        return false
+      } finally {
+        this.saving = false
+      }
     },
 
     async mutate(
