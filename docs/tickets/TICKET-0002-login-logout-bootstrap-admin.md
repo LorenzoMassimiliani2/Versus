@@ -1,7 +1,7 @@
 ---
 id: TICKET-0002
 title: Login, logout e bootstrap admin
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0001]
 blocks: [TICKET-0003, TICKET-0004]
