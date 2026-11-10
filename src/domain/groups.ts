@@ -1,4 +1,5 @@
 import type { GroupAssignment, GroupRemainder } from './phases'
+import { cryptoRandomInt, shuffle } from './random'
 
 /** Elemento minimo che può entrare in un girone. */
 export interface GroupElement {
@@ -132,28 +133,6 @@ export function layoutGroups<T extends GroupElement>(
   }
 }
 
-function defaultRandomInt(maxExclusive: number): number {
-  const limit = Math.floor(0x1_0000_0000 / maxExclusive) * maxExclusive
-  const buffer = new Uint32Array(1)
-  let value = 0
-  do {
-    globalThis.crypto.getRandomValues(buffer)
-    value = buffer[0]!
-  } while (value >= limit)
-  return value % maxExclusive
-}
-
-function shuffle<T>(elements: T[], randomInt: (maxExclusive: number) => number): T[] {
-  const result = [...elements]
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = randomInt(index + 1)
-    const item = result[index]!
-    result[index] = result[swap]!
-    result[swap] = item
-  }
-  return result
-}
-
 function buildManual<T extends GroupElement>(
   elements: T[],
   size: number,
@@ -209,7 +188,7 @@ export function buildGroups<T extends GroupElement>(
     return buildManual(elements, size, count, options.manual ?? {})
   }
 
-  const randomInt = options.randomInt ?? defaultRandomInt
+  const randomInt = options.randomInt ?? cryptoRandomInt
   const ordered =
     assignment === 'random'
       ? shuffle(elements, randomInt)
