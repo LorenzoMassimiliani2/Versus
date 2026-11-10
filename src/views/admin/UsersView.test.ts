@@ -125,6 +125,7 @@ describe('UsersView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper } = await mountView()
+    await wrapper.get('#open-create-user').trigger('click')
     await wrapper.get('#new-username').setValue('carla')
     await wrapper.get('#new-password').setValue('password123')
     await wrapper.get('#create-user-form').trigger('submit')
@@ -223,11 +224,13 @@ describe('UsersView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper } = await mountView()
+    await wrapper.get('#open-create-user').trigger('click')
     await wrapper.get('#new-username').setValue('carla')
     await wrapper.get('#new-password').setValue('password123')
     await wrapper.get('#create-user-form').trigger('submit')
     await flushPromises()
 
+    expect(wrapper.find('#create-user-form').exists()).toBe(true)
     expect(wrapper.get('[role="alert"]').text()).toBe('Limite di 20 utenti attivi raggiunto.')
   })
 })

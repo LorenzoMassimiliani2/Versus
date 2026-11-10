@@ -14,7 +14,6 @@ export const strings = {
   adminUsers: {
     title: 'Gestione utenti',
     subtitle: 'Crea utenze, gestisci accessi e ruoli amministratore.',
-    back: 'Torna alla home',
     searchLabel: 'Cerca per username',
     searchPlaceholder: 'es. mario',
     search: 'Cerca',

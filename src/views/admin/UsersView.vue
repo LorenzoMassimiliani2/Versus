@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 
+import AppModal from '@/components/ui/AppModal.vue'
 import { strings } from '@/lib/strings'
 import { useSessionStore } from '@/stores/session'
 import { useUsersStore, type AdminUser } from '@/stores/users'
 
 const session = useSessionStore()
 const users = useUsersStore()
-const router = useRouter()
 
+const createOpen = ref(false)
 const query = ref('')
 const newUsername = ref('')
 const newPassword = ref('')
@@ -36,6 +36,7 @@ async function submitCreate(): Promise<void> {
   if (ok) {
     newUsername.value = ''
     newPassword.value = ''
+    createOpen.value = false
   }
 }
 
@@ -70,9 +71,6 @@ async function toggleAdmin(user: AdminUser): Promise<void> {
   await users.updateUser(user.id, { isAdmin: !user.isAdmin })
 }
 
-function backHome(): void {
-  void router.push({ name: 'home' })
-}
 </script>
 
 <template>
@@ -83,11 +81,12 @@ function backHome(): void {
         <p class="text-sm text-muted-foreground">{{ strings.adminUsers.subtitle }}</p>
       </div>
       <button
-        class="h-10 shrink-0 rounded-md border border-border px-3 text-sm font-medium"
+        id="open-create-user"
+        class="h-10 shrink-0 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
         type="button"
-        @click="backHome"
+        @click="createOpen = true"
       >
-        {{ strings.adminUsers.back }}
+        {{ strings.adminUsers.createTitle }}
       </button>
     </div>
 
@@ -129,42 +128,6 @@ function backHome(): void {
       </button>
     </form>
 
-    <form id="create-user-form" class="space-y-3 rounded-md border border-border p-4" @submit.prevent="submitCreate">
-      <h2 class="text-base font-semibold">{{ strings.adminUsers.createTitle }}</h2>
-      <div class="grid gap-3 sm:grid-cols-2">
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="new-username">{{ strings.adminUsers.username }}</label>
-          <input
-            id="new-username"
-            v-model="newUsername"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            type="text"
-            autocomplete="off"
-            autocapitalize="none"
-            spellcheck="false"
-            required
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="new-password">{{ strings.adminUsers.password }}</label>
-          <input
-            id="new-password"
-            v-model="newPassword"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            type="text"
-            autocomplete="new-password"
-            required
-          />
-        </div>
-      </div>
-      <button
-        class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        type="submit"
-        :disabled="creating"
-      >
-        {{ creating ? strings.adminUsers.creating : strings.adminUsers.create }}
-      </button>
-    </form>
 
     <p v-if="users.loading" class="text-sm text-muted-foreground">{{ strings.adminUsers.loading }}</p>
     <p v-else-if="users.users.length === 0" class="text-sm text-muted-foreground">
@@ -259,5 +222,47 @@ function backHome(): void {
         </form>
       </li>
     </ul>
+    <AppModal
+      :open="createOpen"
+      :title="strings.adminUsers.createTitle"
+      @close="createOpen = false"
+    >
+      <form id="create-user-form" class="space-y-3" @submit.prevent="submitCreate">
+        <h2 class="text-base font-semibold">{{ strings.adminUsers.createTitle }}</h2>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="new-username">{{ strings.adminUsers.username }}</label>
+            <input
+              id="new-username"
+              v-model="newUsername"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="text"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              required
+            />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="new-password">{{ strings.adminUsers.password }}</label>
+            <input
+              id="new-password"
+              v-model="newPassword"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="text"
+              autocomplete="new-password"
+              required
+            />
+          </div>
+        </div>
+        <button
+          class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          type="submit"
+          :disabled="creating"
+        >
+          {{ creating ? strings.adminUsers.creating : strings.adminUsers.create }}
+        </button>
+      </form>
+    </AppModal>
   </section>
 </template>
