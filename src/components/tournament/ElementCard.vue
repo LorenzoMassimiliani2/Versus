@@ -33,6 +33,7 @@ function play(): void {
 <template>
   <article class="overflow-hidden rounded-md border border-border">
     <img
+      v-if="element.imageUrl"
       :src="element.imageUrl"
       :alt="element.name"
       class="h-40 w-full object-cover"

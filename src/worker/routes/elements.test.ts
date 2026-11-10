@@ -239,7 +239,7 @@ describe('campi personalizzati', () => {
 })
 
 describe('elementi', () => {
-  it('richiede un immagine http o https', async () => {
+  it('accetta immagine assente o vuota e rifiuta URL non http', async () => {
     const { db, env } = createTestEnvironment()
     await seedUser(db, 'u1', 'alice')
     const token = await login(env, 'alice')
@@ -248,6 +248,12 @@ describe('elementi', () => {
     for (const body of [
       { name: 'Senza immagine' },
       { name: 'Immagine vuota', imageUrl: '  ' },
+    ]) {
+      const element = await createElement(env, token, tournamentId, body)
+      expect(element.imageUrl).toBe('')
+    }
+
+    for (const body of [
       { name: 'Immagine relativa', imageUrl: '/foto.jpg' },
       { name: 'Protocollo strano', imageUrl: 'ftp://example.test/foto.jpg' },
     ]) {

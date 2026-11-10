@@ -305,7 +305,7 @@ describe('validatePlan', () => {
 
     const result = validatePlan(plan)
     expect(codes(result.errors)).toEqual(
-      expect.arrayContaining(['element_name_missing', 'element_image_missing', 'element_unknown_field']),
+      expect.arrayContaining(['element_name_missing', 'element_unknown_field']),
     )
     expect(result.errors.some((error) => error.elementId === 'e1')).toBe(true)
 

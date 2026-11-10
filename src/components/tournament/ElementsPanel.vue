@@ -177,6 +177,7 @@ async function submit(): Promise<void> {
         <div class="space-y-1.5">
           <label class="text-sm font-medium" for="element-image">
             {{ strings.elements.imageUrl }}
+            <span class="font-normal text-muted-foreground">({{ strings.tournaments.optional }})</span>
           </label>
           <input
             id="element-image"
@@ -184,7 +185,6 @@ async function submit(): Promise<void> {
             class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
             type="url"
             inputmode="url"
-            required
           />
         </div>
 

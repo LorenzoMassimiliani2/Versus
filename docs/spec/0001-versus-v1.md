@@ -30,7 +30,7 @@ Una PWA installabile con:
 ## Glossario
 
 - **Torneo**: contenitore con elementi, partecipanti, organizzatori e un piano di fasi.
-- **Elemento**: ciò che si vota (persona, canzone, foto). Ha nome, immagine obbligatoria, video opzionale e campi personalizzati. Può essere collegato a un partecipante, per il solo controllo dell'auto-voto.
+- **Elemento**: ciò che si vota (persona, canzone, foto). Ha nome, immagine opzionale, video opzionale e campi personalizzati. Può essere collegato a un partecipante, per il solo controllo dell'auto-voto.
 - **Fase**: unità di svolgimento con formula, scheda di voto, configurazione e regola di avanzamento.
 - **Sfida**: confronto 1 contro 1 tra due elementi dentro una fase di eliminazione o un girone round-robin.
 - **Girone**: sottoinsieme di elementi che produce una classifica interna.
@@ -117,7 +117,7 @@ pending -> open -> closed
 4. Come admin, voglio disattivare un utente, così che non possa più accedere.
 5. Come organizzatore, voglio creare un torneo in bozza con nome, descrizione e copertina opzionale.
 6. Come organizzatore, voglio definire fino a 10 campi personalizzati per il torneo, così da adattare le schede a canzoni, persone o foto.
-7. Come organizzatore, voglio aggiungere elementi con nome, immagine obbligatoria, video YouTube opzionale e valori dei campi personalizzati.
+7. Come organizzatore, voglio aggiungere elementi con nome, immagine opzionale, video YouTube opzionale e valori dei campi personalizzati.
 8. Come organizzatore, voglio riordinare gli elementi con drag & drop, così da controllare il seeding iniziale.
 9. Come organizzatore, voglio selezionare i partecipanti tra gli utenti esistenti, così che solo loro possano votare.
 10. Come organizzatore, voglio nominare co-organizzatori tra gli utenti esistenti, così da delegare la gestione.
@@ -252,7 +252,7 @@ La pubblicazione è bloccata se una di queste regole fallisce:
 10. Il ripescaggio è ammesso solo su `top_global` e `top_per_group`. `targetSize` deve essere maggiore dei qualificati diretti e non superiore al totale degli elementi in ingresso.
 11. Nessuna fase può dipendere da sé stessa o da una fase successiva.
 12. Una fase `elimination` non finale deve usare `advance.type = "winners"`; la finale deve usare `"winner"`.
-13. Ogni elemento ha nome, immagine e valori conformi ai campi personalizzati; i campi personalizzati sono al massimo 10 per torneo.
+13. Ogni elemento ha nome e valori conformi ai campi personalizzati; l'immagine è opzionale. I campi personalizzati sono al massimo 10 per torneo.
 14. Il torneo ha un nome non vuoto e uno slug univoco generato dal nome.
 15. Il torneo ha al massimo 20 partecipanti attivi.
 
@@ -556,7 +556,7 @@ CREATE TABLE elements (
   user_id TEXT REFERENCES users(id),
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
-  image_url TEXT NOT NULL,
+  image_url TEXT NOT NULL DEFAULT '',
   video_url TEXT,
   custom_values TEXT NOT NULL DEFAULT '{}',
   position INTEGER NOT NULL,
@@ -777,7 +777,7 @@ Regole: username minuscolo, 3–32 caratteri `[a-z0-9_.-]`, univoco; password 8�
 | Metodo | Rotta | Ruolo | Note |
 |---|---|---|---|
 | GET | `/api/tournaments/:id/elements` | membro | |
-| POST | `/api/tournaments/:id/elements` | organizzatore | immagine obbligatoria |
+| POST | `/api/tournaments/:id/elements` | organizzatore | immagine opzionale |
 | PATCH | `/api/elements/:id` | organizzatore | metadati |
 | DELETE | `/api/elements/:id` | organizzatore | solo se mai usato |
 | PUT | `/api/tournaments/:id/elements/order` | organizzatore | `{ ids: [...] }` |

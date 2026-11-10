@@ -54,6 +54,7 @@ function pick(elementId: string): void {
         @click="pick(element.elementId)"
       >
         <img
+          v-if="element.imageUrl"
           :src="element.imageUrl"
           :alt="element.name"
           class="h-16 w-16 rounded-md object-cover"

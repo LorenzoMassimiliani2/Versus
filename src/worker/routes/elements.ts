@@ -132,16 +132,20 @@ function readDescription(value: unknown): string | null {
   return typeof value === 'string' && value.length <= DESCRIPTION_MAX_LENGTH ? value : null
 }
 
-function readHttpUrl(value: unknown): string | null {
-  if (typeof value !== 'string') return null
+/** Immagine facoltativa: assenza o stringa vuota producono `''`. */
+function readOptionalImageUrl(value: unknown): { ok: true; value: string } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: '' }
+  if (typeof value !== 'string') return { ok: false }
   const url = value.trim()
-  if (!url || url.length > URL_MAX_LENGTH) return null
+  if (!url) return { ok: true, value: '' }
+  if (url.length > URL_MAX_LENGTH) return { ok: false }
   try {
     const parsed = new URL(url)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : null
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return { ok: false }
   } catch {
-    return null
+    return { ok: false }
   }
+  return { ok: true, value: url }
 }
 
 /** `null` per assenza, `undefined` per video non valido. */
@@ -310,8 +314,8 @@ async function createElementHandler(
   const name = readName(input.name)
   if (!name) return apiError(400, 'invalid_request')
 
-  const imageUrl = readHttpUrl(input.imageUrl)
-  if (!imageUrl) return apiError(400, 'invalid_request')
+  const image = readOptionalImageUrl(input.imageUrl)
+  if (!image.ok) return apiError(400, 'invalid_request')
 
   const description = input.description === undefined ? '' : readDescription(input.description)
   if (description === null) return apiError(400, 'invalid_request')
@@ -339,7 +343,7 @@ async function createElementHandler(
     userId,
     name,
     description,
-    imageUrl,
+    imageUrl: image.value,
     videoUrl,
     customValues: JSON.stringify(values.values),
     createdAt: new Date(now).toISOString(),
@@ -390,9 +394,9 @@ async function patchElementHandler(
     changes.description = description
   }
   if (input.imageUrl !== undefined) {
-    const imageUrl = readHttpUrl(input.imageUrl)
-    if (!imageUrl) return apiError(400, 'invalid_request')
-    changes.imageUrl = imageUrl
+    const image = readOptionalImageUrl(input.imageUrl)
+    if (!image.ok) return apiError(400, 'invalid_request')
+    changes.imageUrl = image.value
   }
   if (input.videoUrl !== undefined) {
     const videoUrl = readVideoUrl(input.videoUrl)

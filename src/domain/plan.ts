@@ -218,9 +218,6 @@ export function validatePlan(input: PlanInput): PlanValidation {
     if (element.name.trim() === '') {
       errors.push({ code: 'element_name_missing', elementId: element.id })
     }
-    if (element.imageUrl.trim() === '') {
-      errors.push({ code: 'element_image_missing', elementId: element.id })
-    }
     const values = validateCustomValues(input.fields, element.customValues ?? {})
     if (!values.ok) {
       errors.push({

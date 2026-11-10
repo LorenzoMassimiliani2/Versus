@@ -22,7 +22,7 @@ created: 2026-11-10
 - Un utente attivo crea un torneo e ne diventa `owner`; lo slug è generato dal nome ed è univoco.
 - Un torneo in `draft` è visibile solo agli organizzatori.
 - Si possono definire fino a 10 campi personalizzati per torneo.
-- Ogni elemento ha nome, immagine obbligatoria, video YouTube opzionale e valori conformi ai campi.
+- Ogni elemento ha nome, immagine opzionale, video YouTube opzionale e valori conformi ai campi.
 - Gli elementi si possono riordinare e l'ordine è persistito.
 - L'organizzatore seleziona i partecipanti tra gli utenti esistenti e nomina co-organizzatori.
 - La pubblicazione dell'undicesimo torneo attivo è rifiutata con `409`.

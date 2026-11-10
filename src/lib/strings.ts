@@ -158,7 +158,7 @@ export const strings = {
   },
   elements: {
     title: 'Elementi',
-    subtitle: 'Cosa si vota: nome, immagine obbligatoria e video opzionale.',
+    subtitle: 'Cosa si vota: nome, immagine e video opzionali.',
     addTitle: 'Nuovo elemento',
     editTitle: 'Modifica elemento',
     empty: 'Nessun elemento ancora. Aggiungi il primo.',
@@ -660,7 +660,6 @@ const PLAN_ISSUE_MESSAGES: Record<string, string> = {
   repechage_criterion_unavailable: 'Un criterio di ripescaggio non è applicabile alla fase precedente.',
   elimination_advance_invalid: 'Le fasi di eliminazione usano tutti i vincitori; la finale usa il vincitore.',
   element_name_missing: 'Un elemento non ha nome.',
-  element_image_missing: 'Un elemento non ha immagine.',
   element_values_invalid: 'I valori di un elemento non rispettano i campi.',
   element_unknown_field: 'Un elemento usa un campo che non esiste.',
   deadline_not_after_previous: 'La scadenza non è successiva a quella della fase precedente.',

@@ -96,6 +96,7 @@ const embedB = computed(() => {
       >
         <template v-if="entry.element">
           <img
+            v-if="entry.element.imageUrl"
             :src="entry.element.imageUrl"
             :alt="entry.element.name"
             class="h-32 w-full rounded-md object-cover"
