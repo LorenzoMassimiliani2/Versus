@@ -1,7 +1,7 @@
 ---
 id: FEAT-0002
 title: Gestione utenti admin
-status: proposed
+status: merged
 branch: feat/0002-gestione-utenti-admin
 worktree: .worktrees/0002
 batch: 2

@@ -1,7 +1,7 @@
 ---
 id: FEAT-0009
 title: Risultati, segretezza e risoluzione
-status: proposed
+status: merged
 branch: feat/0009-risultati-segretezza-risoluzione
 worktree: .worktrees/0009
 batch: 8

@@ -1,7 +1,7 @@
 ---
 id: FEAT-0004
 title: Piano di fasi, validazione e anteprima
-status: proposed
+status: merged
 branch: feat/0004-piano-fasi-validazione-anteprima
 worktree: .worktrees/0004
 batch: 4

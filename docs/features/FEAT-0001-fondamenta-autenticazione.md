@@ -1,7 +1,7 @@
 ---
 id: FEAT-0001
 title: Fondamenta e autenticazione
-status: proposed
+status: merged
 branch: feat/0001-fondamenta-autenticazione
 worktree: .worktrees/0001
 batch: 1

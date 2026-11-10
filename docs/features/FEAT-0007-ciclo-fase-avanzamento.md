@@ -1,7 +1,7 @@
 ---
 id: FEAT-0007
 title: Ciclo di fase e avanzamento
-status: proposed
+status: merged
 branch: feat/0007-ciclo-fase-avanzamento
 worktree: .worktrees/0007
 batch: 6

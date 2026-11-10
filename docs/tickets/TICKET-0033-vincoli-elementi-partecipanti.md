@@ -1,7 +1,7 @@
 ---
 id: TICKET-0033
 title: Applicare i vincoli su elementi e partecipanti durante il torneo
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0031]
 blocks: []

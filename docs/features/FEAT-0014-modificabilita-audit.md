@@ -1,7 +1,7 @@
 ---
 id: FEAT-0014
 title: Modificabilità in corso e audit log
-status: proposed
+status: merged
 branch: feat/0014-modificabilita-audit
 worktree: .worktrees/0014
 batch: 8

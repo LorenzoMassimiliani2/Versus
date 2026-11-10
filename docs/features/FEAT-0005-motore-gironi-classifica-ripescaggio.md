@@ -1,7 +1,7 @@
 ---
 id: FEAT-0005
 title: "Motore di dominio: gironi, classifica e ripescaggio"
-status: proposed
+status: merged
 branch: feat/0005-motore-gironi-classifica-ripescaggio
 worktree: .worktrees/0005
 batch: 5

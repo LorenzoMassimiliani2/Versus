@@ -1,7 +1,7 @@
 ---
 id: FEAT-0008
 title: Voto e crediti
-status: proposed
+status: merged
 branch: feat/0008-voto-crediti
 worktree: .worktrees/0008
 batch: 7

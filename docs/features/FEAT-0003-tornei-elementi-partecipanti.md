@@ -1,7 +1,7 @@
 ---
 id: FEAT-0003
 title: Tornei, elementi e partecipanti
-status: proposed
+status: merged
 branch: feat/0003-tornei-elementi-partecipanti
 worktree: .worktrees/0003
 batch: 3

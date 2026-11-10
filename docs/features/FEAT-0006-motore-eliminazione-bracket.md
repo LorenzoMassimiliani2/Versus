@@ -1,7 +1,7 @@
 ---
 id: FEAT-0006
 title: "Motore di dominio: eliminazione e bracket"
-status: proposed
+status: merged
 branch: feat/0006-motore-eliminazione-bracket
 worktree: .worktrees/0006
 batch: 5
