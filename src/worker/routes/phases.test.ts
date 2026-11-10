@@ -265,12 +265,26 @@ describe('POST /api/tournaments/:id/phases', () => {
     expect(await response.json()).toEqual({ error: 'forbidden' })
   })
 
-  it('rifiuta nuove fasi quando il torneo non è in bozza', async () => {
+  it('consente di aggiungere fasi dopo la pubblicazione finché il piano non è avviato', async () => {
     const { db, env } = createTestEnvironment()
     await seedUser(db, 'u1', 'alice')
     const alice = await login(env, 'alice')
     const tournamentId = await createTournament(env, alice)
     publish(db, tournamentId)
+
+    const phase = await createPhase(env, alice, tournamentId)
+
+    expect(phase.position).toBe(1)
+    expect(phase.status).toBe('pending')
+  })
+
+  it('rifiuta una nuova fase durante il torneo se l ultima fase non è chiusa', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'open' })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
 
     const response = await call(env, `/api/tournaments/${tournamentId}/phases`, alice, {
       method: 'POST',
@@ -278,7 +292,20 @@ describe('POST /api/tournaments/:id/phases', () => {
     })
 
     expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({ error: 'tournament_not_editable' })
+    expect(await response.json()).toEqual({ error: 'previous_phase_not_closed' })
+  })
+
+  it('consente di aggiungere una fase durante il torneo quando l ultima fase è chiusa', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'closed' })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const phase = await createPhase(env, alice, tournamentId, groupPhase('Nuova fase'))
+
+    expect(phase).toMatchObject({ position: 2, status: 'pending' })
   })
 
   it('risponde 404 per un torneo inesistente', async () => {
@@ -380,34 +407,59 @@ describe('PATCH /api/phases/:id', () => {
     const alice = await login(env, 'alice')
     const tournamentId = await createTournament(env, alice)
     seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'open' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2, status: 'closed' })
 
-    const patch = await call(env, '/api/phases/p1', alice, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Nuovo nome' }),
-    })
-    const remove = await call(env, '/api/phases/p1', alice, { method: 'DELETE' })
+    for (const id of ['p1', 'p2']) {
+      const patch = await call(env, `/api/phases/${id}`, alice, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Nuovo nome' }),
+      })
+      const remove = await call(env, `/api/phases/${id}`, alice, { method: 'DELETE' })
 
-    expect(patch.status).toBe(409)
-    expect(await patch.json()).toEqual({ error: 'phase_not_editable' })
-    expect(remove.status).toBe(409)
-    expect(await remove.json()).toEqual({ error: 'phase_not_editable' })
+      expect(patch.status).toBe(409)
+      expect(await patch.json()).toEqual({ error: 'phase_not_editable' })
+      expect(remove.status).toBe(409)
+      expect(await remove.json()).toEqual({ error: 'phase_not_editable' })
+    }
   })
 
-  it('non modifica una fase pending di un torneo non in bozza', async () => {
+  it('modifica una fase pending durante il torneo quando la precedente è chiusa', async () => {
     const { db, env } = createTestEnvironment()
     await seedUser(db, 'u1', 'alice')
     const alice = await login(env, 'alice')
     const tournamentId = await createTournament(env, alice)
-    const phase = await createPhase(env, alice, tournamentId)
-    publish(db, tournamentId)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'closed' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2 })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
 
-    const response = await call(env, `/api/phases/${phase.id}`, alice, {
+    const response = await call(env, '/api/phases/p2', alice, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Finale corretto' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as PhaseResponse).phase).toMatchObject({
+      name: 'Finale corretto',
+      status: 'pending',
+    })
+  })
+
+  it('rifiuta una fase pending la cui precedente non è chiusa', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'open' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2 })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const response = await call(env, '/api/phases/p2', alice, {
       method: 'PATCH',
       body: JSON.stringify({ name: 'Nuovo nome' }),
     })
 
     expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({ error: 'tournament_not_editable' })
+    expect(await response.json()).toEqual({ error: 'previous_phase_not_closed' })
   })
 
   it('risponde 404 per una fase inesistente', async () => {
@@ -519,6 +571,129 @@ describe('PUT /api/tournaments/:id/phases/order', () => {
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: 'phase_not_editable' })
+  })
+})
+
+describe('modificabilità del piano durante il torneo (A2)', () => {
+  it('elimina una fase pending durante il torneo e ricompatta le posizioni', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'closed' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2 })
+    seedPhase(db, { id: 'p3', tournamentId, position: 3 })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const response = await call(env, '/api/phases/p2', alice, { method: 'DELETE' })
+
+    expect(response.status).toBe(204)
+    const plan = await listPlan(env, alice, tournamentId)
+    expect(plan.phases.map((phase) => [phase.id, phase.position])).toEqual([
+      ['p1', 1],
+      ['p3', 2],
+    ])
+  })
+
+  it('rifiuta di eliminare una fase pending con la precedente non chiusa', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'open' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2 })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const response = await call(env, '/api/phases/p2', alice, { method: 'DELETE' })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'previous_phase_not_closed' })
+  })
+
+  it('riordina le sole fasi pending durante il torneo', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'closed' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2, name: 'Seconda' })
+    seedPhase(db, { id: 'p3', tournamentId, position: 3, name: 'Terza' })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const response = await call(env, `/api/tournaments/${tournamentId}/phases/order`, alice, {
+      method: 'PUT',
+      body: JSON.stringify({ ids: ['p1', 'p3', 'p2'] }),
+    })
+
+    expect(response.status).toBe(200)
+    const plan = await listPlan(env, alice, tournamentId)
+    expect(plan.phases.map((phase) => [phase.id, phase.position])).toEqual([
+      ['p1', 1],
+      ['p3', 2],
+      ['p2', 3],
+    ])
+  })
+
+  it('rifiuta il riordino che sposta una fase chiusa', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1, status: 'closed' })
+    seedPhase(db, { id: 'p2', tournamentId, position: 2 })
+    db.prepare("UPDATE tournaments SET status = 'running' WHERE id = ?").run(tournamentId)
+
+    const response = await call(env, `/api/tournaments/${tournamentId}/phases/order`, alice, {
+      method: 'PUT',
+      body: JSON.stringify({ ids: ['p2', 'p1'] }),
+    })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'phase_not_editable' })
+  })
+
+  it('ricalcola l anteprima dopo una modifica al piano', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice)
+
+    const before = await call(env, `/api/tournaments/${tournamentId}/preview`, alice)
+    expect(before.status).toBe(200)
+    expect(
+      ((await before.json()) as { preview: { phases: unknown[] } }).preview.phases,
+    ).toHaveLength(0)
+
+    await createPhase(env, alice, tournamentId, groupPhase('Gironi aggiornati'))
+
+    const after = await call(env, `/api/tournaments/${tournamentId}/preview`, alice)
+    expect(after.status).toBe(200)
+    const body = (await after.json()) as {
+      preview: { phases: Array<{ name: string }> }
+    }
+    expect(body.preview.phases.map((phase) => phase.name)).toEqual(['Gironi aggiornati'])
+  })
+
+  it('rifiuta modifiche e riordino a chi non è organizzatore', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    await seedUser(db, 'u2', 'bruno')
+    const alice = await login(env, 'alice')
+    const bruno = await login(env, 'bruno')
+    const tournamentId = await createTournament(env, alice)
+    seedPhase(db, { id: 'p1', tournamentId, position: 1 })
+
+    const patch = await call(env, '/api/phases/p1', bruno, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Hack' }),
+    })
+    const order = await call(env, `/api/tournaments/${tournamentId}/phases/order`, bruno, {
+      method: 'PUT',
+      body: JSON.stringify({ ids: ['p1'] }),
+    })
+
+    expect(patch.status).toBe(403)
+    expect(order.status).toBe(403)
   })
 })
 

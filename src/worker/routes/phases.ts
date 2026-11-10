@@ -94,6 +94,40 @@ function draftFromRecord(phase: PhaseRecord): PhaseDraft {
   }
 }
 
+function sortByPosition(phases: PhaseRecord[]): PhaseRecord[] {
+  return [...phases].sort((a, b) => a.position - b.position)
+}
+
+/** Il torneo è avviato quando almeno una fase non è più `pending`. */
+function planStarted(phases: PhaseRecord[]): boolean {
+  return phases.some((phase) => phase.status !== 'pending')
+}
+
+/**
+ * A2: prima dell'avvio tutto è modificabile; dopo l'avvio la coda `pending` è
+ * modificabile solo se la fase non pending che la precede è `closed`.
+ */
+function isPendingEditable(phases: PhaseRecord[], phase: PhaseRecord): boolean {
+  if (phase.status !== 'pending') return false
+  if (!planStarted(phases)) return true
+
+  // Le fasi pending formano una coda: conta l'ultima fase non pending che le precede.
+  const ordered = sortByPosition(phases)
+  const index = ordered.findIndex((item) => item.id === phase.id)
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const previous = ordered[cursor]!
+    if (previous.status !== 'pending') return previous.status === 'closed'
+  }
+  return true
+}
+
+/** Dopo l'avvio si può aggiungere in coda solo quando l'ultima fase è chiusa. */
+function canAppendPhase(phases: PhaseRecord[]): boolean {
+  if (!planStarted(phases)) return true
+  const last = sortByPosition(phases).at(-1)
+  return last === undefined || last.status === 'closed'
+}
+
 /** 404 se il torneo non esiste, 403 se l'utente non lo organizza. */
 async function authorizeOrganizer(
   env: Env,
@@ -147,12 +181,20 @@ async function createPhaseHandler(
 
   const tournament = await findTournamentById(env, tournamentId)
   if (!tournament) return apiError(404, 'not_found')
-  if (tournament.status !== 'draft') return apiError(409, 'tournament_not_editable')
+  if (
+    tournament.status !== 'draft' &&
+    tournament.status !== 'published' &&
+    tournament.status !== 'running'
+  ) {
+    return apiError(409, 'tournament_not_editable')
+  }
 
   const result = validatePhaseCreate(await readJson(request))
   if (!result.ok) return apiError(result.error === 'invalid_phase' ? 422 : 400, result.error)
 
   const phases = await listPhases(env, tournamentId)
+  if (!canAppendPhase(phases)) return apiError(409, 'previous_phase_not_closed')
+
   const position = phases.reduce((max, phase) => Math.max(max, phase.position), 0) + 1
   const timestamp = new Date(now).toISOString()
   const id = uuidv7(now)
@@ -179,16 +221,13 @@ async function findPhaseContext(
   env: Env,
   auth: AuthContext,
   phaseId: string,
-): Promise<{ phase: PhaseRecord; tournamentStatus: string } | Response> {
+): Promise<PhaseRecord | Response> {
   const phase = await findPhaseById(env, phaseId)
   if (!phase) return apiError(404, 'not_found')
 
   const denied = await authorizeOrganizer(env, auth, phase.tournament_id)
   if (denied) return denied
-
-  const tournament = await findTournamentById(env, phase.tournament_id)
-  if (!tournament) return apiError(404, 'not_found')
-  return { phase, tournamentStatus: tournament.status }
+  return phase
 }
 
 async function patchPhaseHandler(
@@ -198,18 +237,22 @@ async function patchPhaseHandler(
   phaseId: string,
   now: number,
 ): Promise<Response> {
-  const context = await findPhaseContext(env, auth, phaseId)
-  if (context instanceof Response) return context
+  const phase = await findPhaseContext(env, auth, phaseId)
+  if (phase instanceof Response) return phase
 
-  if (context.phase.status !== 'pending') return apiError(409, 'phase_not_editable')
-  if (context.tournamentStatus !== 'draft') return apiError(409, 'tournament_not_editable')
+  if (phase.status !== 'pending') return apiError(409, 'phase_not_editable')
 
-  const result = validatePhasePatch(await readJson(request), draftFromRecord(context.phase))
+  const phases = await listPhases(env, phase.tournament_id)
+  if (!isPendingEditable(phases, phase)) {
+    return apiError(409, 'previous_phase_not_closed')
+  }
+
+  const result = validatePhasePatch(await readJson(request), draftFromRecord(phase))
   if (!result.ok) return apiError(result.error === 'invalid_phase' ? 422 : 400, result.error)
 
   await updatePhase(
     env,
-    context.phase.id,
+    phase.id,
     {
       name: result.phase.name,
       formula: result.phase.formula,
@@ -220,7 +263,7 @@ async function patchPhaseHandler(
     new Date(now).toISOString(),
   )
 
-  const updated = await findPhaseById(env, context.phase.id)
+  const updated = await findPhaseById(env, phase.id)
   if (!updated) return apiError(500, 'internal_error')
   return json({ phase: serialisePhase(updated) })
 }
@@ -230,13 +273,17 @@ async function deletePhaseHandler(
   auth: AuthContext,
   phaseId: string,
 ): Promise<Response> {
-  const context = await findPhaseContext(env, auth, phaseId)
-  if (context instanceof Response) return context
+  const phase = await findPhaseContext(env, auth, phaseId)
+  if (phase instanceof Response) return phase
 
-  if (context.phase.status !== 'pending') return apiError(409, 'phase_not_editable')
-  if (context.tournamentStatus !== 'draft') return apiError(409, 'tournament_not_editable')
+  if (phase.status !== 'pending') return apiError(409, 'phase_not_editable')
 
-  await deletePhase(env, context.phase)
+  const phases = await listPhases(env, phase.tournament_id)
+  if (!isPendingEditable(phases, phase)) {
+    return apiError(409, 'previous_phase_not_closed')
+  }
+
+  await deletePhase(env, phase)
   return new Response(null, { status: 204 })
 }
 
@@ -251,7 +298,13 @@ async function reorderPhasesHandler(
 
   const tournament = await findTournamentById(env, tournamentId)
   if (!tournament) return apiError(404, 'not_found')
-  if (tournament.status !== 'draft') return apiError(409, 'tournament_not_editable')
+  if (
+    tournament.status !== 'draft' &&
+    tournament.status !== 'published' &&
+    tournament.status !== 'running'
+  ) {
+    return apiError(409, 'tournament_not_editable')
+  }
 
   const body = await readJson(request)
   const ids =
@@ -260,7 +313,7 @@ async function reorderPhasesHandler(
     return apiError(400, 'invalid_request')
   }
 
-  const phases = await listPhases(env, tournamentId)
+  const phases = sortByPosition(await listPhases(env, tournamentId))
   const currentIds = new Set(phases.map((phase) => phase.id))
   const nextIds = ids as string[]
   if (
@@ -270,8 +323,28 @@ async function reorderPhasesHandler(
   ) {
     return apiError(400, 'invalid_request')
   }
-  if (phases.some((phase) => phase.status !== 'pending')) {
-    return apiError(409, 'phase_not_editable')
+
+  const byId = new Map(phases.map((phase) => [phase.id, phase]))
+  const proposed: PhaseRecord[] = nextIds.map((id, index) => {
+    const phase = byId.get(id)!
+    return { ...phase, position: index + 1 }
+  })
+
+  // Le fasi avviate o chiuse non cambiano posizione: si riordinano solo le pending.
+  for (const [index, id] of nextIds.entries()) {
+    const phase = byId.get(id)!
+    if (phase.status !== 'pending' && phase.position !== index + 1) {
+      return apiError(409, 'phase_not_editable')
+    }
+  }
+
+  if (planStarted(phases)) {
+    for (const phase of proposed) {
+      if (phase.status !== 'pending') continue
+      if (!isPendingEditable(proposed, phase)) {
+        return apiError(409, 'previous_phase_not_closed')
+      }
+    }
   }
 
   await reorderPhases(env, tournamentId, nextIds)
