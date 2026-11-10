@@ -1,7 +1,7 @@
 ---
 id: TICKET-0032
 title: Registrare le modifiche strutturali in audit log
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0031]
 blocks: []
