@@ -1,7 +1,7 @@
 ---
 id: TICKET-0010
 title: Comporre i gironi e generare il round-robin
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0007]
 blocks: [TICKET-0011, TICKET-0012, TICKET-0015]

@@ -1,7 +1,7 @@
 ---
 id: TICKET-0011
 title: Calcolare classifiche, pick e spareggi
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0010]
 blocks: [TICKET-0012, TICKET-0015, TICKET-0019, TICKET-0021]
