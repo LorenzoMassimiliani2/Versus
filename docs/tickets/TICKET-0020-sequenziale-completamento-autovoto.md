@@ -1,7 +1,7 @@
 ---
 id: TICKET-0020
 title: Completamento, modalità sequenziale e auto-voto
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0018, TICKET-0019]
 blocks: []
