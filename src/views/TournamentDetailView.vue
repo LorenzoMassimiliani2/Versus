@@ -9,6 +9,7 @@ import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
 import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
+import PhaseFlow from '@/components/tournament/PhaseFlow.vue'
 import PhaseResolutionPanel from '@/components/tournament/PhaseResolutionPanel.vue'
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
@@ -25,15 +26,31 @@ const phases = usePhasesStore()
 const planPreview = usePlanPreviewStore()
 
 const tournamentId = computed(() => String(route.params.id))
-type DetailTab = 'details' | 'elements' | 'fields'
+type DetailTab =
+  | 'details'
+  | 'elements'
+  | 'fields'
+  | 'participants'
+  | 'plan'
+  | 'preview'
+  | 'publish'
 const activeTab = ref<DetailTab>('details')
-const tabs: Array<{ id: DetailTab; label: string }> = [
-  { id: 'details', label: strings.tournamentDetail.tabs.details },
-  { id: 'elements', label: strings.tournamentDetail.tabs.elements },
-  { id: 'fields', label: strings.tournamentDetail.tabs.fields },
+const organizerTabs: Array<{ id: DetailTab; label: string }> = [
+  { id: 'details', label: strings.wizard.steps.details },
+  { id: 'elements', label: strings.wizard.steps.elements },
+  { id: 'fields', label: strings.wizard.steps.fields },
+  { id: 'participants', label: strings.wizard.steps.participants },
+  { id: 'plan', label: strings.wizard.steps.plan },
+  { id: 'preview', label: strings.wizard.steps.preview },
+  { id: 'publish', label: strings.wizard.steps.publish },
 ]
 const isOrganizer = computed(
   () => tournaments.current?.role === 'owner' || tournaments.current?.role === 'co_organizer',
+)
+const tabs = computed(() =>
+  isOrganizer.value
+    ? organizerTabs
+    : [{ id: 'details' as const, label: strings.wizard.steps.details }],
 )
 const isOwner = computed(() => tournaments.current?.role === 'owner')
 const activePhase = computed(() =>
@@ -198,25 +215,28 @@ async function submitEdit(): Promise<void> {
       </div>
 
       <nav
-        class="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1"
+        v-if="isOrganizer"
+        class="overflow-x-auto rounded-lg border border-border bg-muted/30 p-1"
         aria-label="Sezioni del torneo"
       >
-        <button
-          v-for="tab in tabs"
-          :id="`tab-${tab.id}`"
-          :key="tab.id"
-          class="h-10 rounded-md text-sm font-medium transition-colors"
-          :class="
-            activeTab === tab.id
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          "
-          type="button"
-          :aria-current="activeTab === tab.id ? 'page' : undefined"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </button>
+        <div class="flex min-w-max gap-1">
+          <button
+            v-for="tab in tabs"
+            :id="`tab-${tab.id}`"
+            :key="tab.id"
+            class="h-10 rounded-md px-3 text-sm font-medium transition-colors"
+            :class="
+              activeTab === tab.id
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            type="button"
+            :aria-current="activeTab === tab.id ? 'page' : undefined"
+            @click="activeTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
       </nav>
 
       <div v-if="activeTab === 'details'" class="space-y-6">
@@ -281,58 +301,6 @@ async function submitEdit(): Promise<void> {
 
         <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
 
-        <template v-if="isOrganizer">
-          <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
-          <PhasesPanel
-            :tournament-id="tournamentId"
-            :editable="phasesEditable"
-            :auto-advance="tournaments.current.settings.autoAdvance"
-            :can-open="isOrganizer && tournaments.current.status !== 'draft'"
-          />
-          <PlanPreviewPanel :tournament-id="tournamentId" />
-
-          <div
-            v-if="tournaments.current.status === 'draft'"
-            class="space-y-3 rounded-md border border-border p-4"
-          >
-            <div class="space-y-1">
-              <h2 class="text-base font-semibold">{{ strings.wizard.publishTitle }}</h2>
-              <p class="text-sm text-muted-foreground">{{ strings.wizard.publishSubtitle }}</p>
-            </div>
-
-            <p v-if="planPreview.loading" class="text-sm text-muted-foreground">
-              {{ strings.planPreview.loading }}
-            </p>
-            <p
-              v-else-if="planPreview.result && !planPreview.result.valid"
-              class="text-sm text-destructive"
-              role="alert"
-            >
-              {{ strings.wizard.publishInvalid }}
-            </p>
-            <ul
-              v-if="planPreview.result && !planPreview.result.valid"
-              class="space-y-1 text-sm text-destructive"
-            >
-              <li v-for="(issue, index) in planPreview.result.errors" :key="`${issue.code}-${index}`">
-                {{ planIssueMessage(issue.code) }}
-              </li>
-            </ul>
-            <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
-              {{ tournaments.error }}
-            </p>
-
-            <button
-              id="publish-tournament"
-              class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-              type="button"
-              :disabled="!canPublish"
-              @click="publishTournament"
-            >
-              {{ tournaments.publishing ? strings.wizard.publishing : strings.wizard.publish }}
-            </button>
-          </div>
-        </template>
       </div>
 
       <div v-else-if="activeTab === 'elements'" class="space-y-4">
@@ -341,6 +309,68 @@ async function submitEdit(): Promise<void> {
 
       <div v-else-if="activeTab === 'fields'" class="space-y-4">
         <CustomFieldsPanel :tournament-id="tournamentId" />
+      </div>
+
+      <div v-else-if="activeTab === 'participants'" class="space-y-4">
+        <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
+      </div>
+
+      <div v-else-if="activeTab === 'plan'" class="space-y-5">
+        <PhaseFlow :phases="phases.phases" />
+        <PhasesPanel
+          :tournament-id="tournamentId"
+          :editable="phasesEditable"
+          :auto-advance="tournaments.current.settings.autoAdvance"
+          :can-open="isOrganizer && tournaments.current.status !== 'draft'"
+        />
+      </div>
+
+      <div v-else-if="activeTab === 'preview'" class="space-y-4">
+        <PlanPreviewPanel :tournament-id="tournamentId" />
+      </div>
+
+      <div v-else-if="activeTab === 'publish'" class="space-y-3 rounded-md border border-border p-4">
+        <template v-if="tournaments.current.status === 'draft'">
+          <div class="space-y-1">
+            <h2 class="text-base font-semibold">{{ strings.wizard.publishTitle }}</h2>
+            <p class="text-sm text-muted-foreground">{{ strings.wizard.publishSubtitle }}</p>
+          </div>
+
+          <p v-if="planPreview.loading" class="text-sm text-muted-foreground">
+            {{ strings.planPreview.loading }}
+          </p>
+          <p
+            v-else-if="planPreview.result && !planPreview.result.valid"
+            class="text-sm text-destructive"
+            role="alert"
+          >
+            {{ strings.wizard.publishInvalid }}
+          </p>
+          <ul
+            v-if="planPreview.result && !planPreview.result.valid"
+            class="space-y-1 text-sm text-destructive"
+          >
+            <li v-for="(issue, index) in planPreview.result.errors" :key="`${issue.code}-${index}`">
+              {{ planIssueMessage(issue.code) }}
+            </li>
+          </ul>
+          <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
+            {{ tournaments.error }}
+          </p>
+
+          <button
+            id="publish-tournament"
+            class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            type="button"
+            :disabled="!canPublish"
+            @click="publishTournament"
+          >
+            {{ tournaments.publishing ? strings.wizard.publishing : strings.wizard.publish }}
+          </button>
+        </template>
+        <p v-else class="text-sm text-muted-foreground">
+          {{ strings.tournamentDetail.publishLocked }}
+        </p>
       </div>
 
 

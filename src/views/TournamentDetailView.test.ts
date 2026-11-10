@@ -83,6 +83,10 @@ describe('TournamentDetailView', () => {
     expect(wrapper.get('#tab-details').text()).toBe('Dettagli')
     expect(wrapper.get('#tab-elements').text()).toBe('Elementi')
     expect(wrapper.get('#tab-fields').text()).toBe('Campi')
+    expect(wrapper.get('#tab-participants').text()).toBe('Partecipanti')
+    expect(wrapper.get('#tab-plan').text()).toBe('Piano')
+    expect(wrapper.get('#tab-preview').text()).toBe('Anteprima')
+    expect(wrapper.get('#tab-publish').text()).toBe('Pubblica')
     expect(wrapper.get('#open-edit-tournament').attributes('aria-label')).toBe('Modifica dettagli')
 
     await wrapper.get('#open-edit-tournament').trigger('click')
@@ -128,6 +132,9 @@ describe('TournamentDetailView', () => {
     const { wrapper } = await mountView()
 
     expect(wrapper.get('#tab-details').attributes('aria-current')).toBe('page')
+    expect(wrapper.text()).toContain('Descrizione')
+
+    await wrapper.get('#tab-plan').trigger('click')
     expect(wrapper.text()).toContain('Piano di fasi')
 
     await wrapper.get('#tab-elements').trigger('click')
@@ -162,6 +169,8 @@ describe('TournamentDetailView', () => {
 
     const { wrapper } = await mountView()
 
+    await wrapper.get('#tab-participants').trigger('click')
+    await flushPromises()
     expect(wrapper.text()).toContain('Partecipanti')
     expect(wrapper.text()).toContain('Aggiungi partecipante')
     expect(wrapper.text()).toContain('bruno')
@@ -188,6 +197,7 @@ describe('TournamentDetailView', () => {
     expect(wrapper.text()).toContain('Organizzatori')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).not.toContain('Aggiungi partecipante')
+    expect(wrapper.find('#tab-details').exists()).toBe(false)
     expect(wrapper.find('#tournament-edit-form').exists()).toBe(false)
   })
 
