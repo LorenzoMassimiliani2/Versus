@@ -14,6 +14,9 @@ const RESULTS = {
     formula: 'group',
     voteType: 'duel',
   },
+  state: 'closed',
+  secrecy: 'live',
+  visibility: 'aggregate',
   closedAt: '2026-11-10T12:00:00.000Z',
   version: 1,
   groups: [
@@ -112,6 +115,59 @@ describe('PhaseResultsView', () => {
     expect(match.text()).toContain('5')
 
     expect(fetchMock.mock.calls.every(([, init]) => init?.method === undefined)).toBe(true)
+  })
+
+  it('in una fase cieca aperta mostra solo il proprio voto senza aggregati', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          ...RESULTS,
+          state: 'open',
+          secrecy: 'blind',
+          visibility: 'own_vote',
+          closedAt: null,
+          version: 0,
+          groups: [],
+          matches: [],
+          ranking: [],
+          qualified: [],
+          repechage: null,
+          winnerElementId: null,
+          ownVotes: [
+            {
+              kind: 'duel',
+              targetId: 'm1',
+              targetName: 'Canzone uno vs Canzone due',
+              side: 'a',
+              credits: 2,
+            },
+          ],
+        }),
+      ),
+    )
+
+    const { wrapper } = await mountView()
+
+    expect(wrapper.get('#results-visibility-notice').text()).toContain('Fase cieca')
+    expect(wrapper.get('#results-own-votes').text()).toContain('Canzone uno vs Canzone due')
+    expect(wrapper.get('#results-own-votes').text()).toContain('Voto: A · 2 crediti')
+    expect(wrapper.text()).not.toContain('Classifiche dei gironi')
+    expect(wrapper.text()).not.toContain('Qualificati')
+    expect(wrapper.find('#results-winner').exists()).toBe(false)
+  })
+
+  it('in una fase segreta chiusa mostra gli aggregati e avvisa che restano anonimi', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...RESULTS, secrecy: 'secret' })),
+    )
+
+    const { wrapper } = await mountView()
+
+    expect(wrapper.get('#results-visibility-notice').text()).toContain('Fase segreta')
+    expect(wrapper.text()).toContain('Classifiche dei gironi')
+    expect(wrapper.find('#results-own-votes').exists()).toBe(false)
   })
 
   it('mostra i messaggi di errore per una fase non chiusa', async () => {
