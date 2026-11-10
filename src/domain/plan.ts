@@ -9,6 +9,7 @@ import {
   type PhaseVoteType,
   type RankingPhaseConfig,
 } from './phases'
+import { buildBracket } from './bracket'
 import { validateCustomValues, type CustomFieldDefinition } from './custom-values'
 import { groupCountFor, layoutGroups } from './groups'
 
@@ -121,12 +122,6 @@ function placeholder(prefix: string, count: number, scope: string): PlanElementR
     id: `preview-${scope}-${index + 1}`,
     name: `${prefix} ${index + 1}`,
   }))
-}
-
-function nextPowerOfTwo(value: number): number {
-  let power = 1
-  while (power < value) power *= 2
-  return power
 }
 
 function deadlineMillis(deadline: string | null): number | null {
@@ -324,14 +319,10 @@ export function validatePlan(input: PlanInput): PlanValidation {
         output = [...current]
       }
     } else if (phase.formula === 'elimination') {
-      const bracketSize = nextPowerOfTwo(Math.max(2, inputCount))
-      const matchCount = bracketSize / 2
-      for (let match = 0; match < matchCount; match += 1) {
-        const a = current[match] ?? null
-        const b = current[bracketSize - 1 - match] ?? null
-        matches.push({ a, b, bye: !a || !b })
-      }
-      byes = current.slice(0, bracketSize - inputCount)
+      const bracket = buildBracket(current, { seeding: 'ranking' })
+      matches = bracket.ok ? bracket.matches : []
+      byes = bracket.ok ? bracket.byes : []
+      const matchCount = bracket.ok ? bracket.bracketSize / 2 : 0
 
       if (advance.type === 'winner') {
         outputCount = 1
