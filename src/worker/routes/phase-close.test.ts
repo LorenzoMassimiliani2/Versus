@@ -74,10 +74,14 @@ function call(env: Env, path: string, token: string, init: RequestInit = {}): Pr
   return worker.fetch(new Request(`${ORIGIN}${path}`, { ...init, headers }), env, {} as ExecutionContext)
 }
 
-async function createTournament(env: Env, token: string): Promise<string> {
+async function createTournament(
+  env: Env,
+  token: string,
+  settings?: { autoAdvance?: boolean },
+): Promise<string> {
   const response = await call(env, '/api/tournaments', token, {
     method: 'POST',
-    body: JSON.stringify({ name: 'Torneo di Prova' }),
+    body: JSON.stringify({ name: 'Torneo di Prova', settings }),
   })
   expect(response.status).toBe(201)
   return ((await response.json()) as { tournament: { id: string } }).tournament.id
@@ -586,5 +590,325 @@ describe('POST /api/phases/:id/close', () => {
     const secondBody = (await second.json()) as { result: { version: number } }
     expect(secondBody.result.version).toBe(firstBody.result.version)
     expect(count(db, 'SELECT COUNT(*) AS count FROM phase_results WHERE phase_id = ?', phase.id)).toBe(1)
+  })
+})
+
+
+interface AutoAdvanceBody {
+  status: 'opened' | 'concluded' | 'skipped' | 'failed'
+  phaseId?: string | null
+  reason?: string
+  error?: string
+}
+
+function phaseStatus(db: DatabaseSync, phaseId: string): string {
+  return (db.prepare('SELECT status FROM phases WHERE id = ?').get(phaseId) as { status: string })
+    .status
+}
+
+function tournamentStatus(db: DatabaseSync, tournamentId: string): string {
+  return (
+    db.prepare('SELECT status FROM tournaments WHERE id = ?').get(tournamentId) as {
+      status: string
+    }
+  ).status
+}
+
+/**
+ * Fase di classifica semplice: vince il primo per punteggio e `advance` decide
+ * il passaggio. Restituisce la fase creata.
+ */
+async function createRankingPhase(
+  env: Env,
+  token: string,
+  tournamentId: string,
+  name: string,
+  advance: Record<string, unknown>,
+): Promise<{ id: string; position: number; status: string }> {
+  return createPhase(env, token, tournamentId, {
+    name,
+    formula: 'ranking',
+    voteType: 'ranking',
+    config: { ranking: { points: [3, 2, 1], minSelections: 1 } },
+    advance,
+  })
+}
+
+async function closePhase(env: Env, token: string, phaseId: string): Promise<Response> {
+  return call(env, `/api/phases/${phaseId}/close`, token, { method: 'POST' })
+}
+
+describe('avanzamento automatico alla chiusura', () => {
+  it('con autoAdvance true apre la fase successiva nella stessa richiesta', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', { type: 'all' })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      phase: { status: string }
+      autoAdvance?: AutoAdvanceBody
+    }
+    expect(body.phase.status).toBe('closed')
+    expect(body.autoAdvance).toMatchObject({ status: 'opened', phaseId: second.id })
+    expect(phaseStatus(db, second.id)).toBe('open')
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_entrants WHERE phase_id = ?', second.id)).toBe(2)
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_voters WHERE phase_id = ?', second.id)).toBe(1)
+    expect(tournamentStatus(db, tournamentId)).toBe('running')
+  })
+
+  it('con autoAdvance false lascia la fase successiva pending', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: false })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', { type: 'all' })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { autoAdvance?: AutoAdvanceBody }
+    expect(body.autoAdvance).toBeUndefined()
+    expect(phaseStatus(db, second.id)).toBe('pending')
+  })
+
+  it('sospende l avanzamento con un pareggio irrisolto', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', {
+      type: 'top_global',
+      n: 1,
+    })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 3],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { phase: { status: string }; autoAdvance?: AutoAdvanceBody }
+    expect(body.phase.status).toBe('awaiting_resolution')
+    expect(body.autoAdvance).toBeUndefined()
+    expect(phaseStatus(db, second.id)).toBe('pending')
+  })
+
+  it('non apre una fase successiva cancellata', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', { type: 'all' })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+    db.prepare("UPDATE phases SET status = 'cancelled' WHERE id = ?").run(second.id)
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { autoAdvance?: AutoAdvanceBody }
+    expect(body.autoAdvance).toMatchObject({ status: 'skipped', reason: 'next_not_pending' })
+    expect(phaseStatus(db, second.id)).toBe('cancelled')
+  })
+
+  it('conclude il torneo quando la fase chiusa è l ultima', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Unica', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { autoAdvance?: AutoAdvanceBody }
+    expect(body.autoAdvance).toMatchObject({ status: 'concluded' })
+    expect(tournamentStatus(db, tournamentId)).toBe('concluded')
+    const concludedAt = db
+      .prepare('SELECT concluded_at FROM tournaments WHERE id = ?')
+      .get(tournamentId) as { concluded_at: string | null }
+    expect(concludedAt.concluded_at).not.toBeNull()
+  })
+
+  it('due chiusure concorrenti aprono la fase successiva una sola volta', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', { type: 'all' })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+
+    const responses = await Promise.all([
+      closePhase(env, alice, first.id),
+      closePhase(env, alice, first.id),
+    ])
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200])
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_results WHERE phase_id = ?', first.id)).toBe(1)
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_entrants WHERE phase_id = ?', second.id)).toBe(2)
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_voters WHERE phase_id = ?', second.id)).toBe(1)
+    expect(phaseStatus(db, second.id)).toBe('open')
+  })
+
+  it('se l apertura automatica fallisce la chiusura resta valida e l errore è visibile', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createRankingPhase(env, alice, tournamentId, 'Fase 1', { type: 'all' })
+    const second = await createPhase(env, alice, tournamentId, {
+      name: 'Fase 2',
+      formula: 'elimination',
+      voteType: 'duel',
+      config: { elimination: { seeding: 'manual' } },
+      advance: { type: 'winner' },
+    })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, first.id, 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      phase: { status: string }
+      result: { version: number } | null
+      autoAdvance?: AutoAdvanceBody
+    }
+    expect(body.phase.status).toBe('closed')
+    expect(body.result?.version).toBe(1)
+    expect(body.autoAdvance).toMatchObject({ status: 'failed', error: 'manual_seeding_required' })
+    expect(phaseStatus(db, second.id)).toBe('pending')
+    expect(count(db, 'SELECT COUNT(*) AS count FROM phase_entrants WHERE phase_id = ?', second.id)).toBe(0)
+    expect(resultRow(db, first.id)).toBeDefined()
+  })
+
+  it('l apertura automatica usa gli elementi calcolati da avanzamento e ripescaggio', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    const elementIds = seedElements(db, tournamentId, 3)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createPhase(env, alice, tournamentId, {
+      name: 'Gironi',
+      formula: 'group',
+      voteType: 'ranking',
+      config: {
+        groups: { size: 3, assignment: 'snake', remainder: 'smaller_groups' },
+        ranking: { points: [3, 2, 1], minSelections: 1 },
+      },
+      advance: {
+        type: 'top_per_group',
+        n: 1,
+        repechage: { targetSize: 3, criteria: ['group_points'] },
+      },
+    })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Finale', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+    seedBallot(db, first.id, groupId(db, first.id), 'u1', [
+      [elementIds[0]!, 3],
+      [elementIds[1]!, 2],
+      [elementIds[2]!, 1],
+    ])
+
+    const response = await closePhase(env, alice, first.id)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { autoAdvance?: AutoAdvanceBody }
+    expect(body.autoAdvance).toMatchObject({ status: 'opened', phaseId: second.id })
+    const entrants = db
+      .prepare('SELECT element_id FROM phase_entrants WHERE phase_id = ? ORDER BY position')
+      .all(second.id) as Array<{ element_id: string }>
+    expect(entrants.map((row) => row.element_id)).toEqual([elementIds[0], elementIds[1], elementIds[2]])
+  })
+
+  it('l avanzamento automatico avviene anche su chiusura lazy dal piano', async () => {
+    const { db, env } = createEnv()
+    await seedUser(db, 'u1', 'alice')
+    const alice = await login(env, 'alice')
+    const tournamentId = await createTournament(env, alice, { autoAdvance: true })
+    seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1'])
+    const first = await createPhase(env, alice, tournamentId, {
+      name: 'Fase 1',
+      formula: 'ranking',
+      voteType: 'ranking',
+      config: {
+        closeTriggers: ['deadline'],
+        deadline: '2026-11-09T00:00:00.000Z',
+        ranking: { points: [3, 2, 1], minSelections: 1 },
+      },
+      advance: { type: 'all' },
+    })
+    const second = await createRankingPhase(env, alice, tournamentId, 'Fase 2', { type: 'all' })
+    publish(db, tournamentId)
+    await openPhase(env, alice, first.id)
+
+    const response = await call(env, `/api/tournaments/${tournamentId}/phases`, alice)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { phases: Array<{ id: string; status: string }> }
+    expect(body.phases.find((phase) => phase.id === first.id)!.status).toBe('closed')
+    expect(body.phases.find((phase) => phase.id === second.id)!.status).toBe('open')
+    expect(phaseStatus(db, second.id)).toBe('open')
   })
 })

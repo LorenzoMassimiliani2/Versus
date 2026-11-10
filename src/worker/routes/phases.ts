@@ -116,10 +116,15 @@ async function listPhasesHandler(
   if (!role) return apiError(403, 'forbidden')
 
   const stored = await listPhases(env, tournamentId)
-  const phases: PhaseRecord[] = []
+  let changed = false
   for (const phase of stored) {
-    phases.push(await closePhaseIfDue(env, phase, now))
+    const updated = await closePhaseIfDue(env, phase, now)
+    if (updated.status !== phase.status || updated.updated_at !== phase.updated_at) {
+      changed = true
+    }
   }
+  // La chiusura lazy può aver aperto la fase successiva: il piano va riletto.
+  const phases = changed ? await listPhases(env, tournamentId) : stored
   return json({
     settings: parseTournamentSettings(tournament.settings),
     phases: phases.map(serialisePhase),
