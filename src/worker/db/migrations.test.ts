@@ -411,3 +411,171 @@ describe('migrazione 0005', () => {
     db.close()
   })
 })
+
+describe('migrazione 0006', () => {
+  function seedPhaseAndElement(db: DatabaseSync): void {
+    seedTournament(db, 't1', 'torneo-di-prova')
+    seedUser(db, 'u1', 'alice')
+    db.prepare(
+      `INSERT INTO phases (id, tournament_id, position, name, formula, vote_type, config, advance, created_at, updated_at)
+       VALUES ('p1', 't1', 1, 'Gironi', 'group', 'duel', '{}', '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO elements (id, tournament_id, name, image_url, custom_values, position, created_at, updated_at)
+       VALUES ('e1', 't1', 'Alfa', 'https://images.example.test/a.jpg', '{}', 1, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO elements (id, tournament_id, name, image_url, custom_values, position, created_at, updated_at)
+       VALUES ('e2', 't1', 'Beta', 'https://images.example.test/b.jpg', '{}', 2, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run()
+  }
+
+  it('crea le tabelle dello stato operativo della fase e i risultati', () => {
+    const db = migratedDatabase()
+
+    expect(tableNames(db)).toEqual(
+      expect.arrayContaining([
+        'phase_entrants',
+        'phase_voters',
+        'groups',
+        'group_members',
+        'matches',
+        'phase_results',
+      ]),
+    )
+    db.close()
+  })
+
+  it('vincola elementi, votanti, gironi e sfide alla fase', () => {
+    const db = migratedDatabase()
+    seedPhaseAndElement(db)
+
+    db.prepare(
+      "INSERT INTO phase_entrants (phase_id, element_id, seed, position) VALUES ('p1', 'e1', 1, 1)",
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO phase_entrants (phase_id, element_id, seed, position) VALUES ('p1', 'e1', 2, 2)",
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      "INSERT INTO phase_voters (phase_id, user_id, credits_budget) VALUES ('p1', 'u1', 5)",
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO phase_voters (phase_id, user_id, credits_budget) VALUES ('p1', 'u1', 9)",
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      "INSERT INTO groups (id, phase_id, name, position) VALUES ('g1', 'p1', 'Girone A', 1)",
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO groups (id, phase_id, name, position) VALUES ('g2', 'p1', 'Girone B', 1)",
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      "INSERT INTO group_members (group_id, element_id, position) VALUES ('g1', 'e1', 1)",
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO group_members (group_id, element_id, position) VALUES ('g1', 'e1', 2)",
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      `INSERT INTO matches (id, phase_id, group_id, round, position, element_a_id, element_b_id, status)
+       VALUES ('m1', 'p1', 'g1', 1, 1, 'e1', 'e2', 'open')`,
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO matches (id, phase_id, group_id, round, position, element_a_id, element_b_id, status)
+           VALUES ('m2', 'p1', 'g1', 1, 2, 'e1', 'e2', 'sconosciuto')`,
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      `INSERT INTO phase_results (id, phase_id, version, closed_at, config_snapshot, results)
+       VALUES ('r1', 'p1', 1, '2026-11-10T10:00:00Z', '{}', '{}')`,
+    ).run()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO phase_results (id, phase_id, version, closed_at, config_snapshot, results)
+           VALUES ('r2', 'p1', 1, '2026-11-10T10:00:00Z', '{}', '{}')`,
+        )
+        .run(),
+    ).toThrow()
+
+    db.close()
+  })
+
+  it('elimina a cascata lo stato operativo con la fase', () => {
+    const db = migratedDatabase()
+    seedPhaseAndElement(db)
+    db.prepare(
+      "INSERT INTO phase_entrants (phase_id, element_id, seed, position) VALUES ('p1', 'e1', 1, 1)",
+    ).run()
+    db.prepare(
+      "INSERT INTO phase_voters (phase_id, user_id, credits_budget) VALUES ('p1', 'u1', 5)",
+    ).run()
+    db.prepare(
+      "INSERT INTO groups (id, phase_id, name, position) VALUES ('g1', 'p1', 'Girone A', 1)",
+    ).run()
+    db.prepare(
+      "INSERT INTO group_members (group_id, element_id, position) VALUES ('g1', 'e1', 1)",
+    ).run()
+    db.prepare(
+      `INSERT INTO matches (id, phase_id, group_id, round, position, element_a_id, element_b_id, status)
+       VALUES ('m1', 'p1', 'g1', 1, 1, 'e1', 'e2', 'open')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO phase_results (id, phase_id, version, closed_at, config_snapshot, results)
+       VALUES ('r1', 'p1', 1, '2026-11-10T10:00:00Z', '{}', '{}')`,
+    ).run()
+
+    db.prepare("DELETE FROM phases WHERE id = 'p1'").run()
+
+    for (const table of [
+      'phase_entrants',
+      'phase_voters',
+      'group_members',
+      'groups',
+      'matches',
+      'phase_results',
+    ]) {
+      expect(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 })
+    }
+    db.close()
+  })
+
+  it('crea gli indici minimi dello stato operativo', () => {
+    const db = migratedDatabase()
+
+    const rows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name")
+      .all() as { name: string }[]
+    expect(rows.map((row) => row.name)).toEqual(
+      expect.arrayContaining([
+        'idx_groups_phase',
+        'idx_matches_phase',
+        'idx_phase_entrants_phase',
+        'idx_phase_voters_phase',
+      ]),
+    )
+    db.close()
+  })
+})

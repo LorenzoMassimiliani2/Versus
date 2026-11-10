@@ -13,7 +13,7 @@ import {
 import { strings } from '@/lib/strings'
 import { usePhasesStore, type Phase, type PhaseInput } from '@/stores/phases'
 
-const props = defineProps<{ tournamentId: string; editable: boolean }>()
+const props = defineProps<{ tournamentId: string; editable: boolean; canOpen?: boolean }>()
 
 const store = usePhasesStore()
 
@@ -30,6 +30,27 @@ const perVoter = ref('0')
 const maxPerMatch = ref('')
 const configExtras = ref(defaultPhaseConfig())
 const repechage = ref<RepechageRule | undefined>(undefined)
+const openPhaseId = ref<string | null>(null)
+const overrideSelected = ref<string[]>([])
+
+const openingPhase = computed(
+  () => store.phases.find((phase) => phase.id === openPhaseId.value) ?? null,
+)
+const activePreview = computed(() =>
+  openPhaseId.value && store.previewPhaseId === openPhaseId.value ? store.preview : null,
+)
+const operationNames = computed(() => {
+  const names = new Map<string, string>()
+  for (const entrant of store.operation?.entrants ?? []) {
+    names.set(entrant.elementId, entrant.name)
+  }
+  return names
+})
+const overrideReady = computed(() => {
+  const preview = activePreview.value
+  if (!preview?.repechage) return true
+  return overrideSelected.value.length === preview.repechage.slots
+})
 
 const voteTypeOptions = computed(() => allowedVoteTypes(formula.value))
 const advanceOptions = computed(() => allowedAdvanceTypes(formula.value))
@@ -149,6 +170,58 @@ function advanceSummary(phase: Phase): string {
   if ('n' in phase.advance) return label.replace('N', String(phase.advance.n))
   return label
 }
+
+function elementName(elementId: string | null): string {
+  if (!elementId) return ''
+  return operationNames.value.get(elementId) ?? elementId
+}
+
+async function requestOpen(phase: Phase): Promise<void> {
+  openPhaseId.value = phase.id
+  overrideSelected.value = []
+  const preview = await store.loadOpeningPreview(phase.id)
+  if (!preview) {
+    openPhaseId.value = null
+    return
+  }
+  if (preview.repechage && preview.repechage.slots > 0) {
+    overrideSelected.value = preview.repechage.selected.map((entry) => entry.id)
+    return
+  }
+  await confirmOpen()
+}
+
+function toggleRepechage(elementId: string): void {
+  const slots = activePreview.value?.repechage?.slots ?? 0
+  if (overrideSelected.value.includes(elementId)) {
+    overrideSelected.value = overrideSelected.value.filter((id) => id !== elementId)
+    return
+  }
+  if (overrideSelected.value.length >= slots) return
+  overrideSelected.value = [...overrideSelected.value, elementId]
+}
+
+async function confirmOpen(): Promise<void> {
+  const phaseId = openPhaseId.value
+  if (!phaseId || !overrideReady.value) return
+
+  const preview = activePreview.value
+  let override: string[] | undefined
+  if (preview?.repechage && preview.repechage.slots > 0) {
+    const original = preview.repechage.selected.map((entry) => entry.id)
+    const changed =
+      overrideSelected.value.length !== original.length ||
+      overrideSelected.value.some((id, index) => id !== original[index])
+    if (changed) override = [...overrideSelected.value]
+  }
+
+  if (await store.open(phaseId, override)) openPhaseId.value = null
+}
+
+function cancelOpen(): void {
+  openPhaseId.value = null
+  overrideSelected.value = []
+}
 </script>
 
 <template>
@@ -223,8 +296,109 @@ function advanceSummary(phase: Phase): string {
             {{ strings.phases.delete }}
           </button>
         </div>
+        <button
+          v-if="canOpen && phase.status === 'pending'"
+          class="h-8 rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground disabled:opacity-60"
+          type="button"
+          :disabled="store.opening"
+          data-testid="open-phase"
+          @click="requestOpen(phase)"
+        >
+          {{ store.opening && openPhaseId === phase.id ? strings.phases.opening : strings.phases.open }}
+        </button>
       </li>
     </ul>
+
+    <section
+      v-if="activePreview && openingPhase"
+      class="space-y-3 rounded-md border border-border bg-muted/30 p-3"
+      data-testid="open-preview"
+    >
+      <h3 class="text-sm font-semibold">
+        {{ strings.phases.openTitle }} · {{ openingPhase.name }}
+      </h3>
+      <p class="text-xs text-muted-foreground">{{ strings.phases.openHint }}</p>
+      <p class="text-sm">
+        {{ strings.planPreview.direct }}:
+        {{ activePreview.directQualified.map((entry) => entry.name).join(', ') }}
+      </p>
+      <div v-if="activePreview.repechage && activePreview.repechage.slots > 0" class="space-y-2">
+        <p class="text-sm font-medium">{{ strings.phases.repechageTitle }}</p>
+        <p class="text-xs text-muted-foreground">{{ strings.phases.repechageHint }}</p>
+        <p class="text-xs text-muted-foreground">
+          {{ strings.phases.selectedCount(overrideSelected.length, activePreview.repechage.slots) }}
+        </p>
+        <ul class="grid gap-1 sm:grid-cols-2">
+          <li v-for="entry in activePreview.repechage.excluded" :key="entry.id">
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                class="size-4"
+                type="checkbox"
+                :checked="overrideSelected.includes(entry.id)"
+                :disabled="
+                  !overrideSelected.includes(entry.id) &&
+                  overrideSelected.length >= activePreview.repechage.slots
+                "
+                @change="toggleRepechage(entry.id)"
+              />
+              <span>{{ entry.name }}</span>
+            </label>
+          </li>
+        </ul>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button
+          class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          type="button"
+          :disabled="store.opening || !overrideReady"
+          data-testid="confirm-open"
+          @click="confirmOpen"
+        >
+          {{ strings.phases.confirmOpen }}
+        </button>
+        <button
+          class="h-11 rounded-md border border-border px-4 text-sm"
+          type="button"
+          :disabled="store.opening"
+          @click="cancelOpen"
+        >
+          {{ strings.phases.cancelOpen }}
+        </button>
+      </div>
+    </section>
+
+    <section
+      v-if="store.operation"
+      class="space-y-2 rounded-md border border-border p-3"
+      data-testid="phase-operation"
+    >
+      <h3 class="text-sm font-semibold">{{ strings.phases.previewTitle }}</h3>
+      <p class="text-xs text-muted-foreground">
+        {{ strings.phases.voters(store.operation.voters.length) }}
+      </p>
+      <div v-if="store.operation.groups.length > 0" class="space-y-1">
+        <h4 class="text-sm font-medium">{{ strings.phases.groupsTitle }}</h4>
+        <ul class="space-y-1 text-sm">
+          <li v-for="group in store.operation.groups" :key="group.id">
+            <span class="font-medium">{{ group.name }}:</span>
+            {{ group.members.map((member) => elementName(member.elementId)).join(', ') }}
+          </li>
+        </ul>
+      </div>
+      <div v-if="store.operation.matches.length > 0" class="space-y-1">
+        <h4 class="text-sm font-medium">{{ strings.phases.matchesTitle }}</h4>
+        <ul class="space-y-1 text-sm">
+          <li v-for="match in store.operation.matches" :key="match.id">
+            <span v-if="match.status === 'bye'">
+              {{ elementName(match.sideA ?? match.sideB) }} — {{ strings.phases.bye }}
+            </span>
+            <span v-else>
+              {{ elementName(match.sideA) }} vs {{ elementName(match.sideB) }}
+            </span>
+          </li>
+        </ul>
+      </div>
+    </section>
 
     <p v-if="!editable" class="text-sm text-muted-foreground">{{ strings.phases.locked }}</p>
 

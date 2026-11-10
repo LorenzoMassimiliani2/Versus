@@ -81,6 +81,8 @@ export function updateUserPassword(env: Env, id: string, passwordHash: string): 
 
 export interface AuditEntry {
   id: string
+  /** Presente per le azioni che riguardano un torneo. */
+  tournamentId?: string | null
   actorId: string
   action: string
   targetType: string
@@ -92,11 +94,12 @@ export interface AuditEntry {
 
 export function insertAuditEntry(env: Env, entry: AuditEntry): Promise<unknown> {
   return env.DB.prepare(
-    `INSERT INTO audit_log (id, actor_id, action, target_type, target_id, before, after, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO audit_log (id, tournament_id, actor_id, action, target_type, target_id, before, after, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       entry.id,
+      entry.tournamentId ?? null,
       entry.actorId,
       entry.action,
       entry.targetType,

@@ -50,11 +50,11 @@ function planMock(phases: Phase[], extra?: (input: RequestInfo | URL, init?: Req
   })
 }
 
-async function mountPanel(editable = true) {
+async function mountPanel(editable = true, canOpen = false) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const wrapper = mount(PhasesPanel, {
-    props: { tournamentId: 't1', editable },
+    props: { tournamentId: 't1', editable, canOpen },
     global: { plugins: [pinia] },
   })
   await flushPromises()
@@ -155,5 +155,134 @@ describe('PhasesPanel', () => {
     expect(wrapper.find('form').exists()).toBe(false)
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(wrapper.text()).toContain('solo prima dell avvio')
+  })
+})
+describe('apertura della fase', () => {
+  function openedOperation() {
+    return {
+      entrants: [
+        { elementId: 'e1', name: 'Alfa', seed: 1, position: 1 },
+        { elementId: 'e2', name: 'Beta', seed: 2, position: 2 },
+        { elementId: 'e3', name: 'Gamma', seed: 3, position: 3 },
+        { elementId: 'e4', name: 'Delta', seed: 4, position: 4 },
+      ],
+      voters: [
+        { userId: 'u1', creditsBudget: 5 },
+        { userId: 'u2', creditsBudget: 5 },
+      ],
+      groups: [
+        {
+          id: 'g1',
+          name: 'Girone A',
+          position: 1,
+          members: [
+            { elementId: 'e1', position: 1 },
+            { elementId: 'e2', position: 2 },
+          ],
+        },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          groupId: 'g1',
+          round: 1,
+          position: 1,
+          sideA: 'e1',
+          sideB: 'e2',
+          winnerElementId: null,
+          status: 'open',
+        },
+      ],
+    }
+  }
+
+  it('apre una fase senza ripescaggio e mostra gironi e sfide', async () => {
+    const fetchMock = planMock([phase({ status: 'pending' })], (input, init) => {
+      const url = String(input)
+      if (url.endsWith('/open-preview') && init?.method === undefined) {
+        return jsonResponse({
+          entrants: [],
+          directQualified: [],
+          repechage: null,
+        })
+      }
+      if (url.endsWith('/open') && init?.method === 'POST') {
+        return jsonResponse({
+          phase: phase({ status: 'open' }),
+          operation: openedOperation(),
+        })
+      }
+      return null
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = await mountPanel(false, true)
+    await wrapper.get('[data-testid="open-phase"]').trigger('click')
+    await flushPromises()
+
+    const post = fetchMock.mock.calls.find(([input, init]) => {
+      return String(input).endsWith('/open') && init?.method === 'POST'
+    })
+    expect(JSON.parse(String(post![1]!.body))).toEqual({})
+    const operation = wrapper.get('[data-testid="phase-operation"]').text()
+    expect(operation).toContain('2 votanti')
+    expect(operation).toContain('Girone A')
+    expect(operation).toContain('Alfa')
+    expect(operation).toContain('Alfa vs Beta')
+  })
+
+  it('permette di sostituire i ripescati prima dell apertura', async () => {
+    const fetchMock = planMock(
+      [phase({ status: 'pending', advance: { type: 'top_global', n: 2 } })],
+      (input, init) => {
+        const url = String(input)
+        if (url.endsWith('/open-preview') && init?.method === undefined) {
+          return jsonResponse({
+            entrants: [],
+            directQualified: [{ id: 'e1', name: 'Alfa' }],
+            repechage: {
+              targetSize: 3,
+              slots: 2,
+              selected: [
+                { id: 'e2', name: 'Beta' },
+                { id: 'e3', name: 'Gamma' },
+              ],
+              excluded: [
+                { id: 'e2', name: 'Beta' },
+                { id: 'e3', name: 'Gamma' },
+                { id: 'e4', name: 'Delta' },
+              ],
+            },
+          })
+        }
+        if (url.endsWith('/open') && init?.method === 'POST') {
+          return jsonResponse({
+            phase: phase({ status: 'open' }),
+            operation: openedOperation(),
+          })
+        }
+        return null
+      },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = await mountPanel(false, true)
+    await wrapper.get('[data-testid="open-phase"]').trigger('click')
+    await flushPromises()
+
+    const boxes = wrapper.findAll('input[type="checkbox"]')
+    expect(boxes).toHaveLength(3)
+    expect((boxes[0]!.element as HTMLInputElement).checked).toBe(true)
+    await boxes[0]!.trigger('change')
+    await boxes[2]!.trigger('change')
+    await wrapper.get('[data-testid="confirm-open"]').trigger('click')
+    await flushPromises()
+
+    const post = fetchMock.mock.calls.find(([input, init]) => {
+      return String(input).endsWith('/open') && init?.method === 'POST'
+    })
+    expect(JSON.parse(String(post![1]!.body))).toEqual({
+      repechageOverride: ['e3', 'e4'],
+    })
   })
 })

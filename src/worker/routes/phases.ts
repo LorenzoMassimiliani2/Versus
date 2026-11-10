@@ -22,6 +22,7 @@ import {
 } from '../db/phases'
 import { findOrganizerRole, findTournamentById, findTournamentRole } from '../db/tournaments'
 import { apiError, json } from '../http/json'
+import { handlePhaseOpeningRoute } from './phase-opening'
 
 interface PhaseBody {
   id: string
@@ -54,7 +55,7 @@ function parseJson<T>(raw: string, fallback: T): T {
   }
 }
 
-function serialisePhase(phase: PhaseRecord): PhaseBody {
+export function serialisePhase(phase: PhaseRecord): PhaseBody {
   return {
     id: phase.id,
     position: phase.position,
@@ -275,6 +276,9 @@ export async function handlePhasesRoute(
 ): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   const method = request.method
+
+  const openingResponse = await handlePhaseOpeningRoute(request, env, auth, now)
+  if (openingResponse) return openingResponse
 
   const orderMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/phases\/order$/)
   if (orderMatch && method === 'PUT') {
