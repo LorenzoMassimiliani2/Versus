@@ -1,7 +1,7 @@
 ---
 id: TICKET-0001
 title: Schema D1 iniziale, health e migrazioni
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: []
 blocks: [TICKET-0002, TICKET-0003, TICKET-0004, TICKET-0029]
