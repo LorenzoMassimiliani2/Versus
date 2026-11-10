@@ -1,7 +1,7 @@
 ---
 id: TICKET-0031
 title: Modificare fasi pending e riordinare il piano in corso
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0009, TICKET-0015]
 blocks: [TICKET-0032, TICKET-0033]
