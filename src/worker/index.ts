@@ -3,6 +3,7 @@ import { authenticate } from './auth/session'
 import { apiError } from './http/json'
 import { handleLogin, handleLogout, handleMe } from './routes/auth'
 import { handleHealth } from './routes/health'
+import { handleUsersRoute } from './routes/users'
 
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
@@ -33,6 +34,9 @@ export default {
     if (url.pathname === '/api/me' && method === 'GET') {
       return handleMe(auth)
     }
+
+    const usersResponse = await handleUsersRoute(request, env, auth)
+    if (usersResponse) return usersResponse
 
     return new Response('Not found', { status: 404 })
   },

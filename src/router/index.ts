@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { useSessionStore } from '@/stores/session'
+import UsersView from '@/views/admin/UsersView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
 
@@ -18,6 +19,12 @@ const router = createRouter({
       component: HomeView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin/utenti',
+      name: 'admin-users',
+      component: UsersView,
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
 })
 
@@ -27,6 +34,9 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !session.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.requiresAdmin && !session.user?.isAdmin) {
+    return { name: 'home' }
   }
   if (to.name === 'login' && session.isAuthenticated) {
     return { name: 'home' }

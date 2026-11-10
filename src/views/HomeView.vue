@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import { strings } from '@/lib/strings'
 import { useSessionStore } from '@/stores/session'
@@ -30,6 +30,14 @@ async function signOut(): Promise<void> {
         {{ strings.home.logout }}
       </button>
     </div>
+    <p v-if="session.user?.isAdmin">
+      <RouterLink
+        class="text-sm font-medium underline underline-offset-4"
+        :to="{ name: 'admin-users' }"
+      >
+        {{ strings.home.adminUsers }}
+      </RouterLink>
+    </p>
     <p class="text-muted-foreground">
       Le funzionalità dei tornei arrivano con i prossimi ticket.
     </p>

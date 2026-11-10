@@ -51,3 +51,31 @@ describe('router guard', () => {
     expect(router.currentRoute.value.name).toBe('home')
   })
 })
+
+describe('router guard della gestione utenti', () => {
+  it('reindirizza alla home un utente che non è admin', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({ user: { id: 'u1', username: 'alice', isAdmin: false } }, 200),
+      ),
+    )
+
+    await router.push('/admin/utenti')
+
+    expect(router.currentRoute.value.name).toBe('home')
+  })
+
+  it('consente la pagina utenti a un admin', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({ user: { id: 'u1', username: 'alice', isAdmin: true } }, 200),
+      ),
+    )
+
+    await router.push('/admin/utenti')
+
+    expect(router.currentRoute.value.name).toBe('admin-users')
+  })
+})
