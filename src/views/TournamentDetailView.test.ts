@@ -42,6 +42,7 @@ async function mountView(): Promise<{ wrapper: ReturnType<typeof mount> }> {
     routes: [
       { path: '/', name: 'home', component: emptyView() },
       { path: '/tornei/:id', name: 'tournament', component: TournamentDetailView },
+      { path: '/tornei/:id/wizard', name: 'tournament-wizard', component: emptyView() },
     ],
   })
   await router.push('/tornei/t1')
@@ -73,6 +74,7 @@ describe('TournamentDetailView', () => {
     expect(wrapper.text()).toContain('Torneo di prova')
     expect(wrapper.text()).toContain('visibile solo agli organizzatori')
     expect(wrapper.text()).toContain('alice')
+    expect(wrapper.get('#open-wizard').text()).toBe('Wizard di pubblicazione')
 
     await wrapper.get('#edit-name').setValue('Torneo rinominato')
     await wrapper.get('#edit-description').setValue('Nuova descrizione')

@@ -11,6 +11,8 @@ import {
 } from '../../domain/tournament-settings'
 import { uuidv7 } from '../db/ids'
 import {
+  ACTIVE_TOURNAMENT_LIMIT,
+  countActiveTournaments,
   findOrganizerRole,
   findTournamentById,
   findTournamentRole,
@@ -18,6 +20,7 @@ import {
   insertTournament,
   listMemberTournaments,
   listOrganizers,
+  publishTournament,
   uniqueSlug,
   updateTournamentDetails,
   type MembershipRole,
@@ -28,7 +31,7 @@ import {
 } from '../db/tournaments'
 import { listCustomFields, listElements } from '../db/elements'
 import { countActiveParticipants } from '../db/participants'
-import { listPhases } from '../db/phases'
+import { countStartedPhases, listPhases } from '../db/phases'
 import { apiError, json } from '../http/json'
 
 const NAME_MAX_LENGTH = 120
@@ -299,6 +302,18 @@ async function patchTournamentHandler(
   const input = parsePatchInput(await readJson(request))
   if (!input) return apiError(400, 'invalid_request')
 
+  if (input.settings !== undefined) {
+    const current = parseTournamentSettings(tournament.settings)
+    const settingsChanged =
+      (input.settings.autoAdvance !== undefined &&
+        input.settings.autoAdvance !== current.autoAdvance) ||
+      (input.settings.selfVoteAllowed !== undefined &&
+        input.settings.selfVoteAllowed !== current.selfVoteAllowed)
+    if (settingsChanged && (await countStartedPhases(env, tournamentId)) > 0) {
+      return apiError(409, 'tournament_settings_locked')
+    }
+  }
+
   const changes: Parameters<typeof updateTournamentDetails>[2] = {
     name: input.name,
     description: input.description,
@@ -320,18 +335,12 @@ async function patchTournamentHandler(
   return json({ tournament: toDetail(updated, role, organizers) })
 }
 
-async function previewHandler(
+async function loadPlanValidation(
   env: Env,
-  auth: AuthContext,
-  tournamentId: string,
+  tournament: TournamentRecord,
   now: number,
-): Promise<Response> {
-  const tournament = await findTournamentById(env, tournamentId)
-  if (!tournament) return apiError(404, 'not_found')
-
-  const role = await findOrganizerRole(env, tournamentId, auth.user.id)
-  if (!role) return apiError(403, 'forbidden')
-
+): Promise<ReturnType<typeof validatePlan>> {
+  const tournamentId = tournament.id
   const [elements, fields, phases, activeParticipants] = await Promise.all([
     listElements(env, tournamentId),
     listCustomFields(env, tournamentId),
@@ -365,13 +374,62 @@ async function previewHandler(
     now: new Date(now),
   }
 
-  const validation = validatePlan(input)
+  return validatePlan(input)
+}
+
+async function previewHandler(
+  env: Env,
+  auth: AuthContext,
+  tournamentId: string,
+  now: number,
+): Promise<Response> {
+  const tournament = await findTournamentById(env, tournamentId)
+  if (!tournament) return apiError(404, 'not_found')
+
+  const role = await findOrganizerRole(env, tournamentId, auth.user.id)
+  if (!role) return apiError(403, 'forbidden')
+
+  const validation = await loadPlanValidation(env, tournament, now)
   return json({
     valid: validation.valid,
     errors: validation.errors,
     warnings: validation.warnings,
     preview: validation.preview,
   })
+}
+
+async function publishHandler(
+  env: Env,
+  auth: AuthContext,
+  tournamentId: string,
+  now: number,
+): Promise<Response> {
+  const tournament = await findTournamentById(env, tournamentId)
+  if (!tournament) return apiError(404, 'not_found')
+
+  const role = await findOrganizerRole(env, tournamentId, auth.user.id)
+  if (!role) return apiError(403, 'forbidden')
+
+  if (tournament.status !== 'draft') return apiError(409, 'tournament_not_editable')
+
+  const validation = await loadPlanValidation(env, tournament, now)
+  if (!validation.valid) {
+    return json({ error: 'plan_invalid', errors: validation.errors }, { status: 422 })
+  }
+
+  if ((await countActiveTournaments(env)) >= ACTIVE_TOURNAMENT_LIMIT) {
+    return apiError(409, 'tournament_limit_reached')
+  }
+
+  const publishedAt = new Date(now).toISOString()
+  const result = await publishTournament(env, tournamentId, publishedAt)
+  if (result.meta.changes === 0) return apiError(409, 'tournament_not_editable')
+
+  const updated = await findTournamentById(env, tournamentId)
+  if (!updated) return apiError(500, 'internal_error')
+
+  const organizers = await listOrganizers(env, tournamentId)
+  return json({ tournament: toDetail(updated, role, organizers) })
 }
 
 /**
@@ -397,6 +455,11 @@ export async function handleTournamentsRoute(
   const previewMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/preview$/)
   if (previewMatch && method === 'GET') {
     return previewHandler(env, auth, decodeURIComponent(previewMatch[1]!), now)
+  }
+
+  const publishMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/publish$/)
+  if (publishMatch && method === 'POST') {
+    return publishHandler(env, auth, decodeURIComponent(publishMatch[1]!), now)
   }
 
   const detailMatch = pathname.match(/^\/api\/tournaments\/([^/]+)$/)

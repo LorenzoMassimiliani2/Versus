@@ -4,6 +4,7 @@ import { useSessionStore } from '@/stores/session'
 import UsersView from '@/views/admin/UsersView.vue'
 import LoginView from '@/views/LoginView.vue'
 import TournamentDetailView from '@/views/TournamentDetailView.vue'
+import TournamentWizardView from '@/views/TournamentWizardView.vue'
 import TournamentsView from '@/views/TournamentsView.vue'
 
 const router = createRouter({
@@ -24,6 +25,12 @@ const router = createRouter({
       path: '/tornei/:id',
       name: 'tournament',
       component: TournamentDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/tornei/:id/wizard',
+      name: 'tournament-wizard',
+      component: TournamentWizardView,
       meta: { requiresAuth: true },
     },
     {
