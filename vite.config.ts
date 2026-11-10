@@ -53,6 +53,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8787',
         changeOrigin: true,
+        // Il browser invia Origin http://localhost:5173, ma il Worker vede
+        // http://localhost:8787: allineiamo l'header per il controllo CSRF.
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('origin', 'http://localhost:8787')
+          })
+        },
       },
     },
   },
