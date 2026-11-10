@@ -1,7 +1,7 @@
 ---
 id: TICKET-0021
 title: Calcolare e mostrare i risultati di fase
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0011, TICKET-0012, TICKET-0014, TICKET-0016, TICKET-0018, TICKET-0019]
 blocks: [TICKET-0022, TICKET-0023, TICKET-0024, TICKET-0026]
