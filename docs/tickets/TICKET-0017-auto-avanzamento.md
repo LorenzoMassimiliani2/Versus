@@ -1,7 +1,7 @@
 ---
 id: TICKET-0017
 title: Avanzare automaticamente alla fase successiva
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0016]
 blocks: [TICKET-0024]
