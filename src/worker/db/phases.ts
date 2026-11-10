@@ -28,6 +28,20 @@ export function listPhases(env: Env, tournamentId: string): Promise<PhaseRecord[
     .then((result) => result.results)
 }
 
+/**
+ * Quante fasi sono già state avviate. Con almeno una fase avviata le
+ * impostazioni del torneo non sono più modificabili (decisione A2).
+ */
+export function countStartedPhases(env: Env, tournamentId: string): Promise<number> {
+  return env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM phases
+     WHERE tournament_id = ? AND status IN ('open','awaiting_resolution','closed')`,
+  )
+    .bind(tournamentId)
+    .first<{ count: number }>()
+    .then((row) => row?.count ?? 0)
+}
+
 export function findPhaseById(env: Env, id: string): Promise<PhaseRecord | null> {
   return env.DB.prepare(`SELECT ${PHASE_COLUMNS} FROM phases WHERE id = ?`)
     .bind(id)

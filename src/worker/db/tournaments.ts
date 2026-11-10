@@ -33,6 +33,34 @@ const TOURNAMENT_COLUMNS = `t.id, t.slug, t.name, t.description, t.cover_url, t.
 
 const SLUG_MAX_LENGTH = 60
 
+export const ACTIVE_TOURNAMENT_LIMIT = 10
+
+/** Tornei attivi dell'istanza: pubblicati o in corso. Le bozze non contano. */
+export function countActiveTournaments(env: Env): Promise<number> {
+  return env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM tournaments WHERE status IN ('published','running')`,
+  )
+    .first<{ count: number }>()
+    .then((row) => row?.count ?? 0)
+}
+
+/**
+ * Porta la bozza in `published`. L'aggiornamento è condizionato allo stato
+ * `draft`: due richieste concorrenti non pubblicano due volte.
+ */
+export function publishTournament(
+  env: Env,
+  id: string,
+  publishedAt: string,
+): Promise<D1Result> {
+  return env.DB.prepare(
+    `UPDATE tournaments SET status = 'published', published_at = ?, updated_at = ?
+     WHERE id = ? AND status = 'draft'`,
+  )
+    .bind(publishedAt, publishedAt, id)
+    .run()
+}
+
 export function findTournamentById(env: Env, id: string): Promise<TournamentRecord | null> {
   return env.DB.prepare(`SELECT ${TOURNAMENT_COLUMNS} FROM tournaments t WHERE t.id = ?`)
     .bind(id)

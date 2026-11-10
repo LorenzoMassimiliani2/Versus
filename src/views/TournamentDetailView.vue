@@ -98,6 +98,14 @@ async function submitEdit(): Promise<void> {
         >
           {{ strings.tournamentDetail.draftNotice }}
         </p>
+        <RouterLink
+          v-if="isOrganizer && tournaments.current.status === 'draft'"
+          id="open-wizard"
+          class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+          :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
+        >
+          {{ strings.tournaments.publishWizard }}
+        </RouterLink>
       </div>
 
       <img

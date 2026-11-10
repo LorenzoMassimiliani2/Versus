@@ -62,6 +62,7 @@ export const useTournamentsStore = defineStore('tournaments', {
     current: null as TournamentDetail | null,
     loading: false,
     saving: false,
+    publishing: false,
     error: null as string | null,
   }),
   getters: {
@@ -161,6 +162,33 @@ export const useTournamentsStore = defineStore('tournaments', {
         return false
       } finally {
         this.saving = false
+      }
+    },
+
+    async publish(id: string): Promise<boolean> {
+      this.error = null
+      this.publishing = true
+      try {
+        const response = await fetch(`/api/tournaments/${encodeURIComponent(id)}/publish`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+        if (!response.ok) {
+          this.error = tournamentErrorMessage(await errorCode(response))
+          return false
+        }
+        const tournament = ((await response.json()) as TournamentResponse).tournament
+        this.current = tournament
+        this.tournaments = this.tournaments.map((item) =>
+          item.id === tournament.id ? { ...item, ...tournament } : item,
+        )
+        return true
+      } catch {
+        this.error = strings.errors.network
+        return false
+      } finally {
+        this.publishing = false
       }
     },
 
