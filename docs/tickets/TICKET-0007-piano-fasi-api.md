@@ -1,7 +1,7 @@
 ---
 id: TICKET-0007
 title: Modello e API del piano di fasi
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0004, TICKET-0005]
 blocks: [TICKET-0008, TICKET-0010, TICKET-0013, TICKET-0028]
