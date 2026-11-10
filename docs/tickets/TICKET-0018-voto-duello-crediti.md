@@ -1,7 +1,7 @@
 ---
 id: TICKET-0018
 title: Votare un duello con crediti
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0015]
 blocks: [TICKET-0020, TICKET-0021]
