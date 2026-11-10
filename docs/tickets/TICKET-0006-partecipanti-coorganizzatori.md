@@ -1,7 +1,7 @@
 ---
 id: TICKET-0006
 title: Partecipanti, co-organizzatori e limiti
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0004, TICKET-0003]
 blocks: [TICKET-0008, TICKET-0009]
