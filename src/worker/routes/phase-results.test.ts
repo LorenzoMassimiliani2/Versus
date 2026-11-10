@@ -2,6 +2,8 @@ import type { DatabaseSync } from 'node:sqlite'
 
 import { describe, expect, it } from 'vitest'
 
+import type { Secrecy } from '../../domain/phases'
+
 import worker from '../index'
 import { createTestEnvironment } from '../../test/d1'
 import { hashPassword } from '../auth/password'
@@ -120,7 +122,7 @@ async function closePhase(env: Env, token: string, phaseId: string): Promise<voi
 interface ResultsBody {
   phaseId: string
   phase: { id: string; name: string; formula: string; voteType: string }
-  closedAt: string
+  closedAt: string | null
   version: number
   groups: Array<{
     groupId: string
@@ -139,9 +141,13 @@ interface ResultsBody {
   repechage: { enabled: boolean; selected: string[]; criteria: string[] } | null
   winnerElementId: string | null
   elements: Array<{ id: string; name: string; imageUrl: string }>
+  state?: 'open' | 'closed'
+  secrecy?: Secrecy
+  visibility?: 'aggregate' | 'own_vote' | 'hidden'
+  ownVotes?: Array<Record<string, unknown>>
 }
 
-async function setupDuelGroupPhase() {
+async function setupDuelGroupPhase(secrecy: Secrecy = 'live') {
   const { db, env } = createTestEnvironment()
   await seedUser(db, 'u1', 'alice')
   await seedUser(db, 'u2', 'bruno')
@@ -156,6 +162,7 @@ async function setupDuelGroupPhase() {
     formula: 'group',
     voteType: 'duel',
     config: {
+      secrecy,
       groups: { size: 2, assignment: 'snake', remainder: 'smaller_groups', points: [3, 2, 1] },
       credits: { perVoter: 5, maxPerMatch: 2 },
     },
@@ -286,7 +293,7 @@ describe('GET /api/phases/:id/results', () => {
     expect(await response.json()).toEqual({ error: 'forbidden' })
   })
 
-  it('non espone risultati definitivi di una fase non chiusa', async () => {
+  it('espone aggregati provvisori di una fase aperta e non di una pending', async () => {
     const { db, env } = createTestEnvironment()
     await seedUser(db, 'u1', 'alice')
     await seedUser(db, 'u2', 'bruno')
@@ -317,8 +324,14 @@ describe('GET /api/phases/:id/results', () => {
     await openPhase(env, alice, openPhaseId)
 
     const open = await call(env, `/api/phases/${openPhaseId}/results`, bruno)
-    expect(open.status).toBe(409)
-    expect(await open.json()).toEqual({ error: 'phase_not_closed' })
+    expect(open.status).toBe(200)
+    const openBody = (await open.json()) as ResultsBody
+    expect(openBody).toMatchObject({ state: 'open', visibility: 'aggregate' })
+    expect(openBody.closedAt).toBeNull()
+    const snapshots = db
+      .prepare('SELECT COUNT(*) AS count FROM phase_results WHERE phase_id = ?')
+      .get(openPhaseId) as { count: number }
+    expect(snapshots.count).toBe(0)
 
     const pending = await call(env, `/api/phases/${pendingPhaseId}/results`, bruno)
     expect(pending.status).toBe(409)
@@ -333,5 +346,228 @@ describe('GET /api/phases/:id/results', () => {
     const response = await call(env, '/api/phases/inesistente/results', alice)
 
     expect(response.status).toBe(404)
+  })
+})
+
+
+async function setupOpenDuelGroupPhase(secrecy: Secrecy = 'live') {
+  const { db, env } = createTestEnvironment()
+  await seedUser(db, 'u1', 'alice')
+  await seedUser(db, 'u2', 'bruno')
+  const alice = await login(env, 'alice')
+  const bruno = await login(env, 'bruno')
+  const tournamentId = await createTournament(env, alice)
+  const elementIds = seedElements(db, tournamentId, 2)
+  seedParticipants(db, tournamentId, ['u1', 'u2'])
+  const phaseId = await createPhase(env, alice, tournamentId, {
+    name: 'Girone',
+    formula: 'group',
+    voteType: 'duel',
+    config: {
+      secrecy,
+      groups: { size: 2, assignment: 'snake', remainder: 'smaller_groups', points: [3, 2, 1] },
+      credits: { perVoter: 5, maxPerMatch: 2 },
+    },
+    advance: { type: 'top_per_group', n: 1 },
+  })
+  publish(db, tournamentId)
+  await openPhase(env, alice, phaseId)
+  const matchId = (
+    db.prepare('SELECT id FROM matches WHERE phase_id = ? ORDER BY position LIMIT 1').get(phaseId) as {
+      id: string
+    }
+  ).id
+  db.prepare(
+    `INSERT INTO duel_votes (match_id, voter_id, side, credits, created_at, updated_at)
+     VALUES (?, 'u1', 'a', 2, ?, ?), (?, 'u2', 'b', 0, ?, ?)`,
+  ).run(matchId, NOW, NOW, matchId, NOW, NOW)
+  return { db, env, alice, bruno, tournamentId, elementIds, phaseId, matchId }
+}
+
+describe('GET /api/phases/:id/results e segretezza', () => {
+  it('in live mostra gli aggregati a un partecipante durante la fase', async () => {
+    const { env, bruno, phaseId, elementIds } = await setupOpenDuelGroupPhase('live')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'open', secrecy: 'live', visibility: 'aggregate' })
+    expect(body.closedAt).toBeNull()
+    expect(body.version).toBe(0)
+    expect(body.matches[0]).toMatchObject({
+      winnerElementId: elementIds[0],
+      sideA: { elementId: elementIds[0], weight: 3, credits: 2, voters: 1 },
+      sideB: { elementId: elementIds[1], weight: 1, credits: 0, voters: 1 },
+    })
+    expect(body.groups[0]!.ranking.map((row) => row.elementId)).toEqual(elementIds)
+    expect(body.ownVotes).toBeUndefined()
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('in blind mostra solo il proprio voto al partecipante prima della chiusura', async () => {
+    const { env, bruno, phaseId, matchId } = await setupOpenDuelGroupPhase('blind')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'open', secrecy: 'blind', visibility: 'own_vote' })
+    expect(body.groups).toEqual([])
+    expect(body.matches).toEqual([])
+    expect(body.qualified).toEqual([])
+    expect(body.ownVotes).toEqual([
+      {
+        kind: 'duel',
+        targetId: matchId,
+        targetName: 'Elemento 1 vs Elemento 2',
+        side: 'b',
+        credits: 0,
+      },
+    ])
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('in blind mostra gli aggregati al partecipante dopo la chiusura', async () => {
+    const { env, bruno, phaseId, elementIds } = await setupDuelGroupPhase('blind')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'closed', secrecy: 'blind', visibility: 'aggregate' })
+    expect(body.closedAt).toBeTruthy()
+    expect(body.matches[0]!.sideA.elementId).toBe(elementIds[0])
+    expect(body.groups).toHaveLength(1)
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('in secret mostra solo il proprio voto al partecipante prima della chiusura', async () => {
+    const { env, bruno, phaseId, matchId } = await setupOpenDuelGroupPhase('secret')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'open', secrecy: 'secret', visibility: 'own_vote' })
+    expect(body.groups).toEqual([])
+    expect(body.ownVotes).toEqual([
+      {
+        kind: 'duel',
+        targetId: matchId,
+        targetName: 'Elemento 1 vs Elemento 2',
+        side: 'b',
+        credits: 0,
+      },
+    ])
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('in secret non espone voti individuali all organizzatore nemmeno dopo la chiusura', async () => {
+    const { env, alice, phaseId, elementIds } = await setupDuelGroupPhase('secret')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, alice)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'closed', secrecy: 'secret', visibility: 'aggregate' })
+    expect(body.closedAt).toBeTruthy()
+    expect(body.matches[0]).toMatchObject({
+      sideA: { weight: 3, credits: 2, voters: 1 },
+      sideB: { weight: 1, credits: 0, voters: 1 },
+    })
+    expect(body.ownVotes).toBeUndefined()
+    const serialised = JSON.stringify(body)
+    expect(serialised).not.toContain('u1')
+    expect(serialised).not.toContain('u2')
+    expect(serialised).not.toContain('voterId')
+    expect(body.matches[0]!.sideA.elementId).toBe(elementIds[0])
+  })
+
+  it('in secret mostra gli aggregati al partecipante dopo la chiusura', async () => {
+    const { env, bruno, phaseId, elementIds } = await setupDuelGroupPhase('secret')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'closed', secrecy: 'secret', visibility: 'aggregate' })
+    expect(body.matches[0]!.sideA.elementId).toBe(elementIds[0])
+    expect(body.ownVotes).toBeUndefined()
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('in secret mostra solo aggregati all organizzatore durante la fase aperta', async () => {
+    const { env, alice, phaseId, elementIds } = await setupOpenDuelGroupPhase('secret')
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, alice)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body).toMatchObject({ state: 'open', secrecy: 'secret', visibility: 'aggregate' })
+    expect(body.ownVotes).toBeUndefined()
+    expect(body.matches[0]!.sideA.elementId).toBe(elementIds[0])
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
+  })
+
+  it('restituisce al partecipante il proprio pick senza aggregati in una fase secret aperta', async () => {
+    const { db, env } = createTestEnvironment()
+    await seedUser(db, 'u1', 'alice')
+    await seedUser(db, 'u2', 'bruno')
+    const alice = await login(env, 'alice')
+    const bruno = await login(env, 'bruno')
+    const tournamentId = await createTournament(env, alice)
+    const elementIds = seedElements(db, tournamentId, 2)
+    seedParticipants(db, tournamentId, ['u1', 'u2'])
+    const phaseId = await createPhase(env, alice, tournamentId, {
+      name: 'Classifica finale',
+      formula: 'ranking',
+      voteType: 'pick',
+      config: {
+        secrecy: 'secret',
+        ranking: { points: [3, 2, 1], minSelections: 1 },
+      },
+      advance: { type: 'winner' },
+    })
+    publish(db, tournamentId)
+    await openPhase(env, alice, phaseId)
+    db.prepare(
+      `INSERT INTO ballot_votes (phase_id, target_id, voter_id, kind, payload, created_at, updated_at)
+       VALUES (?, ?, 'u1', 'pick', ?, ?, ?), (?, ?, 'u2', 'pick', ?, ?, ?)`,
+    ).run(
+      phaseId,
+      phaseId,
+      JSON.stringify({ elementId: elementIds[0] }),
+      NOW,
+      NOW,
+      phaseId,
+      phaseId,
+      JSON.stringify({ elementId: elementIds[1] }),
+      NOW,
+      NOW,
+    )
+
+    const response = await call(env, `/api/phases/${phaseId}/results`, bruno)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as ResultsBody
+    expect(body.visibility).toBe('own_vote')
+    expect(body.ranking).toEqual([])
+    expect(body.ownVotes).toEqual([
+      {
+        kind: 'pick',
+        targetId: phaseId,
+        targetName: 'Classifica finale',
+        elementId: elementIds[1],
+      },
+    ])
+    expect(JSON.stringify(body)).not.toContain('u1')
+    expect(JSON.stringify(body)).not.toContain('u2')
   })
 })

@@ -29,8 +29,8 @@ const openVotePhases = computed(() =>
     ? []
     : phases.phases.filter((phase) => phase.status === 'open' && phase.voteType === 'duel'),
 )
-const closedPhases = computed(() =>
-  phases.phases.filter((phase) => phase.status === 'closed'),
+const resultPhases = computed(() =>
+  phases.phases.filter((phase) => phase.status === 'closed' || phase.status === 'open'),
 )
 
 const editName = ref('')
@@ -55,6 +55,13 @@ function syncForm(): void {
   editCoverUrl.value = tournament.coverUrl ?? ''
   editSelfVoteAllowed.value = tournament.settings.selfVoteAllowed
   editAutoAdvance.value = tournament.settings.autoAdvance
+}
+
+function resultsLinkLabel(phase: { status: string; config: { secrecy?: string } }): string {
+  if (phase.status === 'open' && !isOrganizer.value && (phase.config?.secrecy ?? 'live') !== 'live') {
+    return strings.results.viewOwnVote
+  }
+  return strings.results.view
 }
 
 async function submitEdit(): Promise<void> {
@@ -119,16 +126,16 @@ async function submitEdit(): Promise<void> {
         </RouterLink>
       </div>
 
-      <div v-if="closedPhases.length > 0" class="space-y-2">
+      <div v-if="resultPhases.length > 0" class="space-y-2">
         <h2 class="text-base font-semibold">{{ strings.results.title }}</h2>
         <RouterLink
-          v-for="phase in closedPhases"
+          v-for="phase in resultPhases"
           :id="`results-phase-${phase.id}`"
           :key="phase.id"
           class="inline-flex h-11 items-center rounded-md border border-border px-4 text-sm font-medium"
           :to="{ name: 'phase-results', params: { id: tournamentId, phaseId: phase.id } }"
         >
-          {{ strings.results.view }} · {{ phase.name }}
+          {{ resultsLinkLabel(phase) }} · {{ phase.name }}
         </RouterLink>
       </div>
 

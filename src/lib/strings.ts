@@ -300,10 +300,27 @@ export const strings = {
   results: {
     title: 'Risultati',
     view: 'Vedi risultati',
+    viewOwnVote: 'Vedi il tuo voto',
     subtitle: 'Esito ufficiale della fase, salvato alla chiusura.',
+    subtitleOpen: 'Risultati provvisori, aggiornati mentre la fase è aperta.',
     back: 'Torna al torneo',
     loading: 'Caricamento dei risultati…',
     closedAt: (date: string) => `Chiusa il ${date}`,
+    visibilityNotice: {
+      hidden: 'I risultati non sono ancora disponibili.',
+      blind: 'Fase cieca: fino alla chiusura vedi solo il tuo voto.',
+      secretOwn: 'Fase segreta: fino alla chiusura vedi solo il tuo voto.',
+      secretClosed:
+        'Fase segreta: sono visibili solo i risultati aggregati, mai chi ha votato cosa.',
+      provisional: 'La fase è ancora aperta: questi risultati sono provvisori.',
+    },
+    ownVotesTitle: 'Il tuo voto',
+    noOwnVotes: 'Non hai ancora votato in questa fase.',
+    ownVoteDuel: (side: string, credits: number) =>
+      credits > 0 ? `Voto: ${side} · ${credits} crediti` : `Voto: ${side} · nessun credito`,
+    ownVoteSide: { a: 'A', b: 'B', abstain: 'Astensione' } as Record<string, string>,
+    ownVoteRanking: (entries: string) => `Classifica: ${entries}`,
+    ownVotePick: (name: string) => `Scelta: ${name}`,
     groupsTitle: 'Classifiche dei gironi',
     groupName: (position: number | null, name: string | null) =>
       name ?? (position ? `Girone ${position}` : 'Girone'),

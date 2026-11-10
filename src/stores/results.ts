@@ -44,6 +44,33 @@ export interface ResultsRepechage {
   criteria: string[]
 }
 
+export type ResultsVisibility = 'aggregate' | 'own_vote' | 'hidden'
+export type Secrecy = 'live' | 'blind' | 'secret'
+
+export interface OwnDuelVote {
+  kind: 'duel'
+  targetId: string
+  targetName: string
+  side: 'a' | 'b' | 'abstain'
+  credits: number
+}
+
+export interface OwnRankingVote {
+  kind: 'ranking'
+  targetId: string
+  targetName: string
+  assignments: Array<{ elementId: string; points: number }>
+}
+
+export interface OwnPickVote {
+  kind: 'pick'
+  targetId: string
+  targetName: string
+  elementId: string
+}
+
+export type OwnVote = OwnDuelVote | OwnRankingVote | OwnPickVote
+
 export interface PhaseResults {
   phaseId: string
   phase: {
@@ -53,7 +80,10 @@ export interface PhaseResults {
     formula: 'group' | 'elimination' | 'ranking'
     voteType: 'duel' | 'ranking' | 'pick'
   }
-  closedAt: string
+  state: 'open' | 'closed'
+  secrecy: Secrecy
+  visibility: ResultsVisibility
+  closedAt: string | null
   version: number
   groups: ResultsGroup[]
   matches: ResultsMatch[]
@@ -62,6 +92,7 @@ export interface PhaseResults {
   repechage: ResultsRepechage | null
   winnerElementId: string | null
   elements: ResultsElement[]
+  ownVotes?: OwnVote[]
 }
 
 interface ErrorResponse {
