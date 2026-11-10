@@ -249,3 +249,80 @@ describe('computePhaseResults: ripescaggio', () => {
     })
   })
 })
+
+describe('computePhaseResults: risoluzione manuale', () => {
+  it('espone il target ambiguo e applica l ordine scelto', () => {
+    const unresolvedResult = computePhaseResults(
+      input('ranking', 'ranking', { type: 'top_global', n: 1 }, {
+        entrants: [{ elementId: 'e1' }, { elementId: 'e2' }],
+        ballotVotes: [rankingBallot('phase1', [['e1', 3], ['e2', 3]])],
+      }),
+    )
+
+    expect(unresolvedResult.ok).toBe(true)
+    if (!unresolvedResult.ok) return
+    expect(unresolvedResult.requiresManualResolution).toBe(true)
+    expect(unresolvedResult.unresolvedTargets).toEqual([
+      { targetId: 'phase1', elementIds: ['e1', 'e2'] },
+    ])
+
+    const resolved = computePhaseResults(
+      input('ranking', 'ranking', { type: 'top_global', n: 1 }, {
+        entrants: [{ elementId: 'e1' }, { elementId: 'e2' }],
+        ballotVotes: [rankingBallot('phase1', [['e1', 3], ['e2', 3]])],
+        resolutions: [{ targetId: 'phase1', ordering: ['e2', 'e1'] }],
+      }),
+    )
+
+    expect(resolved.ok).toBe(true)
+    if (!resolved.ok) return
+    expect(resolved.requiresManualResolution).toBe(false)
+    expect(resolved.unresolvedTargets).toEqual([])
+    expect(resolved.results.qualified).toEqual(['e2'])
+    expect(resolved.results.ranking.map((row) => row.elementId)).toEqual(['e2', 'e1'])
+  })
+
+  it('risolve un duello ambiguo con il vincitore indicato', () => {
+    const resolved = computePhaseResults(
+      input('elimination', 'duel', { type: 'winner' }, {
+        entrants: [{ elementId: 'a1' }, { elementId: 'a2' }],
+        matches: [
+          { id: 'm1', groupId: null, round: 1, position: 1, elementAId: 'a1', elementBId: 'a2', winnerElementId: null, status: 'open' },
+        ],
+        duelVotes: [
+          { matchId: 'm1', side: 'a', credits: 0 },
+          { matchId: 'm1', side: 'b', credits: 0 },
+        ],
+        resolutions: [{ targetId: 'm1', ordering: ['a2', 'a1'] }],
+      }),
+    )
+
+    expect(resolved.ok).toBe(true)
+    if (!resolved.ok) return
+    expect(resolved.requiresManualResolution).toBe(false)
+    expect(resolved.results.matches[0]).toMatchObject({
+      matchId: 'm1',
+      winnerElementId: 'a2',
+      resolvedBy: 'manual',
+    })
+    expect(resolved.results.winnerElementId).toBe('a2')
+  })
+
+  it('risolve il pareggio di un girone con la classifica manuale', () => {
+    const resolved = computePhaseResults(
+      input('group', 'ranking', { type: 'top_per_group', n: 1 }, {
+        config: config({ groups: { size: 2, assignment: 'snake', remainder: 'smaller_groups', points: [3, 2, 1], standings: { win: 3, draw: 1, loss: 0 } } }),
+        entrants: [{ elementId: 'a1' }, { elementId: 'a2' }],
+        groups: [{ id: 'g1', position: 1, memberIds: ['a1', 'a2'] }],
+        ballotVotes: [rankingBallot('g1', [['a1', 3], ['a2', 3]])],
+        resolutions: [{ targetId: 'g1', ordering: ['a2', 'a1'] }],
+      }),
+    )
+
+    expect(resolved.ok).toBe(true)
+    if (!resolved.ok) return
+    expect(resolved.requiresManualResolution).toBe(false)
+    expect(resolved.results.groups[0]!.ranking.map((row) => row.elementId)).toEqual(['a2', 'a1'])
+    expect(resolved.results.qualified).toEqual(['a2'])
+  })
+})
