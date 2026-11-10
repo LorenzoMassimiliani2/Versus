@@ -1,7 +1,7 @@
 ---
 id: TICKET-0013
 title: Costruire il tabellone a eliminazione con bye
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0007]
 blocks: [TICKET-0014, TICKET-0015]
