@@ -1,7 +1,7 @@
 ---
 id: TICKET-0016
 title: "Chiudere una fase: manuale, tutti hanno votato, scadenza"
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0015]
 blocks: [TICKET-0017, TICKET-0021, TICKET-0023]
