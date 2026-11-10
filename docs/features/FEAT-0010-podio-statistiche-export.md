@@ -30,7 +30,7 @@ created: 2026-11-10
 ## Sub-spec / tickets
 
 - spec: da generare in `docs/spec/0010-podio-statistiche-export.md`; riferimento: `docs/spec/0001-versus-v1.md`.
-- tickets: nessuno.
+- tickets: `docs/tickets/TICKET-0024-*.md`, `docs/tickets/TICKET-0025-*.md`
 
 ## Note di merge
 

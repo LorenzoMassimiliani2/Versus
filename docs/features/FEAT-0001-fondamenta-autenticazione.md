@@ -32,7 +32,7 @@ created: 2026-11-10
 ## Sub-spec / tickets
 
 - spec: da generare in `docs/spec/0001-fondamenta-autenticazione.md`; riferimento: `docs/spec/0001-versus-v1.md`.
-- tickets: nessuno.
+- tickets: `docs/tickets/TICKET-0001-*.md`, `docs/tickets/TICKET-0002-*.md`
 
 ## Note di merge
 

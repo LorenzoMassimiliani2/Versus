@@ -32,7 +32,7 @@ created: 2026-11-10
 ## Sub-spec / tickets
 
 - spec: da generare in `docs/spec/0005-motore-gironi-classifica-ripescaggio.md`; riferimento: `docs/spec/0001-versus-v1.md`.
-- tickets: nessuno.
+- tickets: `docs/tickets/TICKET-0010-*.md`, `docs/tickets/TICKET-0011-*.md`, `docs/tickets/TICKET-0012-*.md`
 
 ## Note di merge
 

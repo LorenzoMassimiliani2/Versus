@@ -31,7 +31,7 @@ created: 2026-11-10
 ## Sub-spec / tickets
 
 - spec: da generare in `docs/spec/0002-gestione-utenti-admin.md`; riferimento: `docs/spec/0001-versus-v1.md`.
-- tickets: nessuno.
+- tickets: `docs/tickets/TICKET-0003-*.md`
 
 ## Note di merge
 

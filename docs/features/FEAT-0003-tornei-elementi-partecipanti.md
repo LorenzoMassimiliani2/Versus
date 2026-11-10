@@ -33,7 +33,7 @@ created: 2026-11-10
 ## Sub-spec / tickets
 
 - spec: da generare in `docs/spec/0003-tornei-elementi-partecipanti.md`; riferimento: `docs/spec/0001-versus-v1.md`.
-- tickets: nessuno.
+- tickets: `docs/tickets/TICKET-0004-*.md`, `docs/tickets/TICKET-0005-*.md`, `docs/tickets/TICKET-0006-*.md`
 
 ## Note di merge
 
