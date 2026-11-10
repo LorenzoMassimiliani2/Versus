@@ -331,6 +331,27 @@ describe('validatePlan', () => {
     expect(codes(validatePlan(plan).errors)).toContain('participants_max')
   })
 
+  it('con 38 elementi e smaller_groups l anteprima crea 8 gironi da 4 e 2 da 3', () => {
+    const plan: PlanInput = {
+      tournament: { name: 'Piccoli', slug: 'piccoli', settings: { autoAdvance: false } },
+      elements: Array.from({ length: 38 }, (_, index) => element(index + 1)),
+      fields: [],
+      activeParticipants: 2,
+      phases: [
+        groupPhase({
+          config: config({ groups: groupConfig({ remainder: 'smaller_groups' }) }),
+          advance: { type: 'top_per_group', n: 2 },
+        }),
+      ],
+    }
+
+    const groupPreview = validatePlan(plan).preview.phases[0]!
+    expect(groupPreview.groups.map((group) => group.members.length)).toEqual([
+      4, 4, 4, 4, 4, 4, 4, 4, 3, 3,
+    ])
+    expect(groupPreview.byes).toEqual([])
+  })
+
   it('mostra gironi pieni, bye e accoppiamenti nell anteprima', () => {
     const plan: PlanInput = {
       tournament: { name: 'Bye', slug: 'bye', settings: { autoAdvance: false } },

@@ -2,9 +2,7 @@
 import {
   ADVANCE_TYPES_BY_FORMULA,
   VOTE_TYPES_BY_FORMULA,
-  type GroupAssignment,
   type GroupPhaseConfig,
-  type GroupRemainder,
   type PhaseAdvance,
   type PhaseConfig,
   type PhaseFormula,
@@ -12,6 +10,7 @@ import {
   type RankingPhaseConfig,
 } from './phases'
 import { validateCustomValues, type CustomFieldDefinition } from './custom-values'
+import { groupCountFor, layoutGroups } from './groups'
 
 export interface PlanElementInput {
   id: string
@@ -117,12 +116,6 @@ const DEFAULT_RANKING_CONFIG: RankingPhaseConfig = {
   minSelections: 1,
 }
 
-function groupName(index: number): string {
-  const letter = String.fromCharCode(65 + (index % 26))
-  const cycle = Math.floor(index / 26)
-  return `Girone ${cycle === 0 ? letter : `${letter}${cycle}`}`
-}
-
 function placeholder(prefix: string, count: number, scope: string): PlanElementRef[] {
   return Array.from({ length: Math.max(0, count) }, (_, index) => ({
     id: `preview-${scope}-${index + 1}`,
@@ -140,65 +133,6 @@ function deadlineMillis(deadline: string | null): number | null {
   if (!deadline) return null
   const parsed = Date.parse(deadline)
   return Number.isNaN(parsed) ? null : parsed
-}
-
-function divideSequentially(
-  elements: PlanElementRef[],
-  groupCount: number,
-  size: number,
-): PlanElementRef[][] {
-  return Array.from({ length: groupCount }, (_, index) =>
-    elements.slice(index * size, (index + 1) * size),
-  )
-}
-
-function divideSnake(elements: PlanElementRef[], groupCount: number): PlanElementRef[][] {
-  const buckets: PlanElementRef[][] = Array.from({ length: groupCount }, () => [])
-  let groupIndex = 0
-  let direction = 1
-  for (const element of elements) {
-    buckets[groupIndex]!.push(element)
-    if (direction === 1) {
-      if (groupIndex === groupCount - 1) {
-        direction = -1
-      } else {
-        groupIndex += 1
-      }
-    } else if (groupIndex === 0) {
-      direction = 1
-    } else {
-      groupIndex -= 1
-    }
-  }
-  return buckets
-}
-
-function buildGroups(
-  elements: PlanElementRef[],
-  size: number,
-  groupCount: number,
-  assignment: GroupAssignment,
-  remainder: GroupRemainder,
-): { groups: PlanGroupPreview[]; byes: PlanElementRef[] } {
-  if (groupCount <= 0) return { groups: [], byes: [] }
-
-  if (remainder === 'byes') {
-    const groups = divideSequentially(elements, groupCount, size).map((members, index) => ({
-      name: groupName(index),
-      members,
-    }))
-    return { groups, byes: elements.slice(groupCount * size) }
-  }
-
-  const buckets =
-    assignment === 'snake'
-      ? divideSnake(elements, groupCount)
-      : divideSequentially(elements, groupCount, size)
-
-  return {
-    groups: buckets.map((members, index) => ({ name: groupName(index), members })),
-    byes: [],
-  }
 }
 
 interface RepechageOutcome {
@@ -350,18 +284,14 @@ export function validatePlan(input: PlanInput): PlanValidation {
       if (size === 0) phaseIssue('group_size')
       const effectiveSize = size || 2
       const remainder = groupConfig.remainder ?? 'smaller_groups'
-      const groupCount =
-        remainder === 'byes'
-          ? Math.floor(inputCount / effectiveSize)
-          : Math.ceil(inputCount / effectiveSize)
+      const groupCount = groupCountFor(inputCount, effectiveSize, remainder)
       if (groupCount < 1) phaseIssue('group_empty')
 
-      const built = buildGroups(
+      const built = layoutGroups(
         current,
         effectiveSize,
-        groupCount,
-        groupConfig.assignment ?? 'random',
         remainder,
+        groupConfig.assignment === 'snake' ? 'snake' : 'sequential',
       )
       groups = built.groups
       byes = built.byes
