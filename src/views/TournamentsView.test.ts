@@ -103,7 +103,7 @@ describe('TournamentsView', () => {
       id: 't3',
       slug: 'nuovo-torneo',
       name: 'Nuovo torneo',
-      settings: { autoAdvance: false },
+      settings: { selfVoteAllowed: true, autoAdvance: false },
       publishedAt: null,
       startedAt: null,
       concludedAt: null,

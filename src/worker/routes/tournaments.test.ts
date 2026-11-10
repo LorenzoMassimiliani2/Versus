@@ -25,7 +25,7 @@ interface TournamentBody {
     coverUrl: string | null
     status: string
     role: string
-    settings?: { autoAdvance: boolean }
+    settings?: { selfVoteAllowed: boolean; autoAdvance: boolean }
     organizers?: { userId: string; username: string; role: string }[]
     createdAt: string
     updatedAt: string
@@ -166,7 +166,7 @@ describe('POST /api/tournaments', () => {
       status: 'draft',
       slug: 'torneo-di-prova',
       role: 'owner',
-      settings: { autoAdvance: false },
+      settings: { selfVoteAllowed: true, autoAdvance: false },
     })
     expect(body.tournament.id).toBeTruthy()
     expect(body.tournament.organizers).toEqual([
@@ -181,7 +181,7 @@ describe('POST /api/tournaments', () => {
     const stored = db
       .prepare('SELECT settings FROM tournaments WHERE id = ?')
       .get(body.tournament.id) as { settings: string }
-    expect(JSON.parse(stored.settings)).toEqual({ autoAdvance: false })
+    expect(JSON.parse(stored.settings)).toEqual({ selfVoteAllowed: true, autoAdvance: false })
   })
 
   it('genera slug univoci per nomi uguali', async () => {
@@ -224,7 +224,7 @@ describe('POST /api/tournaments', () => {
       settings: { autoAdvance: true },
     })
 
-    expect(created.tournament.settings).toEqual({ autoAdvance: true })
+    expect(created.tournament.settings).toEqual({ selfVoteAllowed: true, autoAdvance: true })
   })
 
   it('rifiuta body non validi con 400', async () => {
@@ -369,7 +369,7 @@ describe('GET /api/tournaments/:id', () => {
       slug: 'torneo-di-prova',
       status: 'draft',
       role: 'co_organizer',
-      settings: { autoAdvance: false },
+      settings: { selfVoteAllowed: true, autoAdvance: false },
     })
     expect(body.tournament.organizers).toEqual(
       expect.arrayContaining([

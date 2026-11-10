@@ -13,7 +13,7 @@ const DETAIL = {
   coverUrl: null,
   status: 'draft',
   role: 'owner',
-  settings: { autoAdvance: false },
+  settings: { selfVoteAllowed: true, autoAdvance: false },
   createdAt: '2026-11-10T09:00:00.000Z',
   updatedAt: '2026-11-10T09:00:00.000Z',
   publishedAt: null,
@@ -84,6 +84,7 @@ describe('TournamentDetailView', () => {
       name: 'Torneo rinominato',
       description: 'Nuova descrizione',
       coverUrl: null,
+      settings: { selfVoteAllowed: true, autoAdvance: false },
     })
     expect(wrapper.text()).toContain('Torneo rinominato')
     expect(wrapper.get('[role="status"]').text()).toBe('Modifiche salvate.')

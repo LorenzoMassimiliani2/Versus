@@ -6,6 +6,7 @@ import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
 import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
+import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import { strings, tournamentStatusLabel } from '@/lib/strings'
 import { useElementsStore } from '@/stores/elements'
 import { useTournamentsStore } from '@/stores/tournaments'
@@ -24,6 +25,8 @@ const participantsEditable = computed(() => tournaments.current?.status === 'dra
 const editName = ref('')
 const editDescription = ref('')
 const editCoverUrl = ref('')
+const editSelfVoteAllowed = ref(true)
+const editAutoAdvance = ref(false)
 const saved = ref(false)
 
 onMounted(async () => {
@@ -38,6 +41,8 @@ function syncForm(): void {
   editName.value = tournament.name
   editDescription.value = tournament.description
   editCoverUrl.value = tournament.coverUrl ?? ''
+  editSelfVoteAllowed.value = tournament.settings.selfVoteAllowed
+  editAutoAdvance.value = tournament.settings.autoAdvance
 }
 
 async function submitEdit(): Promise<void> {
@@ -46,6 +51,10 @@ async function submitEdit(): Promise<void> {
     name: editName.value,
     description: editDescription.value,
     coverUrl: editCoverUrl.value.trim() ? editCoverUrl.value.trim() : null,
+    settings: {
+      selfVoteAllowed: editSelfVoteAllowed.value,
+      autoAdvance: editAutoAdvance.value,
+    },
   })
   if (ok) saved.value = true
 }
@@ -115,6 +124,7 @@ async function submitEdit(): Promise<void> {
 
       <template v-if="isOrganizer">
         <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
+        <PhasesPanel :tournament-id="tournamentId" :editable="participantsEditable" />
         <CustomFieldsPanel :tournament-id="tournamentId" />
         <ElementsPanel :tournament-id="tournamentId" />
       </template>
@@ -166,6 +176,30 @@ async function submitEdit(): Promise<void> {
             inputmode="url"
           />
         </div>
+
+        <fieldset class="space-y-2 rounded-md border border-border p-3">
+          <legend class="px-1 text-sm font-medium">
+            {{ strings.tournamentDetail.settingsTitle }}
+          </legend>
+          <label class="flex items-start gap-2 text-sm">
+            <input
+              id="edit-self-vote"
+              v-model="editSelfVoteAllowed"
+              class="mt-0.5 size-4"
+              type="checkbox"
+            />
+            <span>{{ strings.tournamentDetail.selfVoteAllowed }}</span>
+          </label>
+          <label class="flex items-start gap-2 text-sm">
+            <input
+              id="edit-auto-advance"
+              v-model="editAutoAdvance"
+              class="mt-0.5 size-4"
+              type="checkbox"
+            />
+            <span>{{ strings.tournamentDetail.autoAdvance }}</span>
+          </label>
+        </fieldset>
 
         <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
           {{ tournaments.error }}

@@ -22,7 +22,7 @@ const DETAIL: TournamentDetail = {
   role: 'owner',
   createdAt: '2026-11-10T09:00:00.000Z',
   updatedAt: '2026-11-10T09:00:00.000Z',
-  settings: { autoAdvance: false },
+  settings: { selfVoteAllowed: true, autoAdvance: false },
   publishedAt: null,
   startedAt: null,
   concludedAt: null,

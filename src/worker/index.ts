@@ -5,6 +5,7 @@ import { handleLogin, handleLogout, handleMe } from './routes/auth'
 import { handleElementsRoute } from './routes/elements'
 import { handleHealth } from './routes/health'
 import { handleParticipantsRoute } from './routes/participants'
+import { handlePhasesRoute } from './routes/phases'
 import { handleTournamentsRoute } from './routes/tournaments'
 import { handleUsersRoute } from './routes/users'
 
@@ -46,6 +47,9 @@ export default {
 
     const elementsResponse = await handleElementsRoute(request, env, auth)
     if (elementsResponse) return elementsResponse
+
+    const phasesResponse = await handlePhasesRoute(request, env, auth)
+    if (phasesResponse) return phasesResponse
 
     const usersResponse = await handleUsersRoute(request, env, auth)
     if (usersResponse) return usersResponse

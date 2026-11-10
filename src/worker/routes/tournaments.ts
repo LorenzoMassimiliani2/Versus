@@ -1,4 +1,11 @@
 import type { AuthContext } from '../auth/session'
+import {
+  DEFAULT_TOURNAMENT_SETTINGS,
+  parseTournamentSettings,
+  readTournamentSettings,
+  readTournamentSettingsPatch,
+  type TournamentSettings,
+} from '../../domain/tournament-settings'
 import { uuidv7 } from '../db/ids'
 import {
   findOrganizerRole,
@@ -22,17 +29,11 @@ const NAME_MAX_LENGTH = 120
 const DESCRIPTION_MAX_LENGTH = 2000
 const URL_MAX_LENGTH = 2048
 
-interface TournamentSettings {
-  autoAdvance: boolean
-}
-
-const DEFAULT_SETTINGS: TournamentSettings = { autoAdvance: false }
-
 interface TournamentInput {
   name?: string
   description?: string
   coverUrl?: string | null
-  settings?: TournamentSettings
+  settings?: Partial<TournamentSettings>
 }
 
 interface OrganizerSummary {
@@ -101,14 +102,6 @@ function readCoverUrl(value: unknown): { valid: boolean; value: string | null } 
   return { valid: true, value: url }
 }
 
-function readSettings(value: unknown): TournamentSettings | null {
-  if (typeof value !== 'object' || value === null) return null
-  const settings = value as { autoAdvance?: unknown }
-  if (settings.autoAdvance === undefined) return { ...DEFAULT_SETTINGS }
-  if (typeof settings.autoAdvance !== 'boolean') return null
-  return { autoAdvance: settings.autoAdvance }
-}
-
 function parseCreateInput(value: unknown): TournamentInput | null {
   if (typeof value !== 'object' || value === null) return null
   const body = value as Record<string, unknown>
@@ -128,7 +121,7 @@ function parseCreateInput(value: unknown): TournamentInput | null {
     input.coverUrl = coverUrl.value
   }
   if (body.settings !== undefined) {
-    const settings = readSettings(body.settings)
+    const settings = readTournamentSettings(body.settings)
     if (!settings) return null
     input.settings = settings
   }
@@ -156,19 +149,21 @@ function parsePatchInput(value: unknown): TournamentInput | null {
     input.coverUrl = coverUrl.value
   }
 
-  if (input.name === undefined && input.description === undefined && input.coverUrl === undefined) {
+  if (body.settings !== undefined) {
+    const settings = readTournamentSettingsPatch(body.settings)
+    if (!settings) return null
+    input.settings = settings
+  }
+
+  if (
+    input.name === undefined &&
+    input.description === undefined &&
+    input.coverUrl === undefined &&
+    input.settings === undefined
+  ) {
     return null
   }
   return input
-}
-
-function parseSettings(raw: string): TournamentSettings {
-  try {
-    const parsed = JSON.parse(raw) as { autoAdvance?: unknown }
-    return { autoAdvance: parsed.autoAdvance === true }
-  } catch {
-    return { ...DEFAULT_SETTINGS }
-  }
 }
 
 function summarize(tournament: TournamentRecord, role: MembershipRole): TournamentSummary {
@@ -201,7 +196,7 @@ function toDetail(
 ): TournamentDetail {
   return {
     ...summarize(tournament, role),
-    settings: parseSettings(tournament.settings),
+    settings: parseTournamentSettings(tournament.settings),
     publishedAt: tournament.published_at,
     startedAt: tournament.started_at,
     concludedAt: tournament.concluded_at,
@@ -237,7 +232,10 @@ async function createTournamentHandler(
     name: input.name!,
     description: input.description ?? '',
     coverUrl: input.coverUrl ?? null,
-    settings: JSON.stringify(input.settings ?? DEFAULT_SETTINGS),
+    settings: JSON.stringify({
+      ...DEFAULT_TOURNAMENT_SETTINGS,
+      ...input.settings,
+    }),
     createdAt: timestamp,
     updatedAt: timestamp,
   })
@@ -287,12 +285,19 @@ async function patchTournamentHandler(
   const input = parsePatchInput(await readJson(request))
   if (!input) return apiError(400, 'invalid_request')
 
-  await updateTournamentDetails(
-    env,
-    tournamentId,
-    { name: input.name, description: input.description, coverUrl: input.coverUrl },
-    new Date(now).toISOString(),
-  )
+  const changes: Parameters<typeof updateTournamentDetails>[2] = {
+    name: input.name,
+    description: input.description,
+    coverUrl: input.coverUrl,
+  }
+  if (input.settings !== undefined) {
+    changes.settings = JSON.stringify({
+      ...parseTournamentSettings(tournament.settings),
+      ...input.settings,
+    })
+  }
+
+  await updateTournamentDetails(env, tournamentId, changes, new Date(now).toISOString())
 
   const updated = await findTournamentById(env, tournamentId)
   if (!updated) return apiError(500, 'internal_error')

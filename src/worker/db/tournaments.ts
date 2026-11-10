@@ -207,6 +207,7 @@ export interface TournamentChanges {
   name?: string
   description?: string
   coverUrl?: string | null
+  settings?: string
 }
 
 export function updateTournamentDetails(
@@ -229,6 +230,10 @@ export function updateTournamentDetails(
   if (changes.coverUrl !== undefined) {
     assignments.push('cover_url = ?')
     values.push(changes.coverUrl)
+  }
+  if (changes.settings !== undefined) {
+    assignments.push('settings = ?')
+    values.push(changes.settings)
   }
 
   return env.DB.prepare(`UPDATE tournaments SET ${assignments.join(', ')} WHERE id = ?`)
