@@ -1,7 +1,7 @@
 ---
 id: TICKET-0003
 title: Gestione utenti da parte dell'admin
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0001, TICKET-0002]
 blocks: [TICKET-0004, TICKET-0006]
