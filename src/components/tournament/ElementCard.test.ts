@@ -38,6 +38,17 @@ describe('ElementCard', () => {
     expect(wrapper.text()).not.toContain('Riproduci video')
   })
 
+  it('disabilita l eliminazione di un elemento usato in una fase avviata', () => {
+    const wrapper = mount(ElementCard, {
+      props: { element: { ...ELEMENT, locked: true }, canManage: true },
+    })
+
+    const deleteButton = wrapper.get('button[title]')
+    expect(deleteButton.text()).toBe('Elimina')
+    expect(deleteButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('Ha partecipato a una fase: non può essere eliminato.')
+  })
+
   it('non offre il video quando l elemento non ne ha uno', () => {
     const wrapper = mount(ElementCard, { props: { element: { ...ELEMENT, videoUrl: null } } })
 

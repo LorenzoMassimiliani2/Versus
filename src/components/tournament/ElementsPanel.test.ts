@@ -96,6 +96,19 @@ describe('ElementsPanel', () => {
     expect(store.elements).toHaveLength(1)
   })
 
+  it('segnala e blocca l aggiunta dopo l avvio della prima fase', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(ElementsPanel, {
+      props: { tournamentId: 't1', addLocked: true },
+      global: { plugins: [pinia] },
+    })
+
+    expect(wrapper.text()).toContain('Non puoi aggiungere elementi dopo l apertura della prima fase.')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+  })
+
   it('riordina con i bottoni accessibili e persiste l ordine', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

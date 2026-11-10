@@ -42,6 +42,33 @@ export function countStartedPhases(env: Env, tournamentId: string): Promise<numb
     .then((row) => row?.count ?? 0)
 }
 
+/**
+ * Almeno una fase è stata aperta almeno una volta. Da quel momento la lista
+ * degli elementi non è più estendibile: le fasi avviate hanno un insieme di
+ * partecipanti congelato.
+ */
+export function countOpenedPhases(env: Env, tournamentId: string): Promise<number> {
+  return env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM phases
+     WHERE tournament_id = ? AND opened_at IS NOT NULL`,
+  )
+    .bind(tournamentId)
+    .first<{ count: number }>()
+    .then((row) => row?.count ?? 0)
+}
+
+/** Fasi in corso: `open` o in attesa di risoluzione di uno spareggio. */
+export function hasActivePhases(env: Env, tournamentId: string): Promise<boolean> {
+  return env.DB.prepare(
+    `SELECT 1 AS found FROM phases
+     WHERE tournament_id = ? AND status IN ('open','awaiting_resolution')
+     LIMIT 1`,
+  )
+    .bind(tournamentId)
+    .first<{ found: number }>()
+    .then((row) => row !== null)
+}
+
 export function findPhaseById(env: Env, id: string): Promise<PhaseRecord | null> {
   return env.DB.prepare(`SELECT ${PHASE_COLUMNS} FROM phases WHERE id = ?`)
     .bind(id)

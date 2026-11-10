@@ -10,6 +10,7 @@ import {
   removeParticipant,
   type ParticipantRecord,
 } from '../db/participants'
+import { hasActivePhases } from '../db/phases'
 import {
   deleteOrganizer,
   findOrganizerRole,
@@ -76,6 +77,22 @@ function serialiseOrganizer(organizer: OrganizerRecord): OrganizerBody {
   }
 }
 
+/**
+ * A2: i partecipanti si aggiungono e rimuovono solo tra una fase e l'altra.
+ * Nessuna fase aperta o in attesa di risoluzione deve esistere; un torneo
+ * concluso o archiviato non si modifica piu'.
+ */
+async function participantEditBlocker(
+  env: Env,
+  tournament: TournamentRecord,
+): Promise<string | null> {
+  if (!['draft', 'published', 'running'].includes(tournament.status)) {
+    return 'tournament_not_editable'
+  }
+  if (await hasActivePhases(env, tournament.id)) return 'phase_in_progress'
+  return null
+}
+
 /** 404 se il torneo non esiste, 403 se l'utente non lo organizza. */
 async function authorizeOrganizer(
   env: Env,
@@ -111,7 +128,8 @@ async function addParticipantHandler(
 ): Promise<Response> {
   const tournament = await authorizeOrganizer(env, auth, tournamentId)
   if (tournament instanceof Response) return tournament
-  if (tournament.status !== 'draft') return apiError(409, 'tournament_not_editable')
+  const blocker = await participantEditBlocker(env, tournament)
+  if (blocker) return apiError(409, blocker)
 
   const userId = readUserId(await readJson(request))
   if (!userId) return apiError(400, 'invalid_request')
@@ -161,7 +179,8 @@ async function removeParticipantHandler(
 ): Promise<Response> {
   const tournament = await authorizeOrganizer(env, auth, tournamentId)
   if (tournament instanceof Response) return tournament
-  if (tournament.status !== 'draft') return apiError(409, 'tournament_not_editable')
+  const blocker = await participantEditBlocker(env, tournament)
+  if (blocker) return apiError(409, blocker)
 
   const participant = await findParticipant(env, tournamentId, userId)
   if (!participant || participant.status !== 'active') return apiError(404, 'not_found')

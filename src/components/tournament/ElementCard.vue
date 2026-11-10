@@ -105,13 +105,18 @@ function play(): void {
           {{ strings.elements.edit }}
         </button>
         <button
-          class="h-11 rounded-md border border-destructive px-3 text-sm text-destructive"
+          class="h-11 rounded-md border border-destructive px-3 text-sm text-destructive disabled:opacity-60"
           type="button"
+          :disabled="element.locked"
+          :title="element.locked ? strings.elements.deleteLocked : undefined"
           @click="emit('delete')"
         >
           {{ strings.elements.delete }}
         </button>
       </div>
+      <p v-if="element.locked" class="text-xs text-muted-foreground">
+        {{ strings.elements.deleteLocked }}
+      </p>
     </div>
   </article>
 </template>

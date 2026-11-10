@@ -144,7 +144,7 @@ describe('ParticipantsPanel', () => {
     const wrapper = await mountPanel(false)
 
     expect(wrapper.find('form').exists()).toBe(false)
-    expect(wrapper.text()).toContain('solo mentre il torneo è in bozza')
+    expect(wrapper.text()).toContain('solo tra una fase e l altra')
     expect(wrapper.find('button').exists()).toBe(false)
   })
 })
