@@ -1,7 +1,7 @@
 ---
 id: TICKET-0015
 title: Aprire una fase e creare gironi, match e snapshot votanti
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0009, TICKET-0010, TICKET-0011, TICKET-0012, TICKET-0013, TICKET-0014]
 blocks: [TICKET-0016, TICKET-0018, TICKET-0019, TICKET-0026, TICKET-0031]

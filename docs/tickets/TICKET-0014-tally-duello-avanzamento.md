@@ -1,7 +1,7 @@
 ---
 id: TICKET-0014
 title: Calcolare i duelli e avanzare i vincitori
-status: ready-for-agent
+status: done
 category: enhancement
 blocked_by: [TICKET-0013]
 blocks: [TICKET-0015, TICKET-0021]
