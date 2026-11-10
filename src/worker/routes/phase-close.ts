@@ -4,7 +4,7 @@ import {
   countBallotVotersMissingVotes,
   countDuelVotersMissingVotes,
   findLatestResult,
-  hasVoteTables,
+  hasVoteTable,
   listPhaseBallotVotes,
   listPhaseDuelVotes,
   loadResultsOperation,
@@ -84,11 +84,12 @@ export async function evaluateCloseTrigger(
   }
 
   if (triggers.includes('all_voted')) {
-    if (!(await hasVoteTables(env))) return 'all_voted'
     if (phase.vote_type === 'duel') {
+      if (!(await hasVoteTable(env, 'duel_votes'))) return 'all_voted'
       const missing = await countDuelVotersMissingVotes(env, phase.id)
       return missing === 0 ? 'all_voted' : null
     }
+    if (!(await hasVoteTable(env, 'ballot_votes'))) return 'all_voted'
     const targetCount = phase.formula === 'group' ? (await listPhaseGroups(env, phase.id)).length : 1
     const missing = await countBallotVotersMissingVotes(env, phase.id, targetCount)
     return missing === 0 ? 'all_voted' : null
@@ -110,11 +111,14 @@ async function closePhase(
 ): Promise<CloseOutcome | CloseFailure> {
   const config = phaseConfig(phase)
   const advance = phaseAdvance(phase)
-  const withVotes = await hasVoteTables(env)
+  const [hasDuelVotes, hasBallotVotes] = await Promise.all([
+    hasVoteTable(env, 'duel_votes'),
+    hasVoteTable(env, 'ballot_votes'),
+  ])
   const [operation, duelVotes, ballotVotes] = await Promise.all([
     loadResultsOperation(env, phase.id),
-    withVotes ? listPhaseDuelVotes(env, phase.id) : Promise.resolve([]),
-    withVotes ? listPhaseBallotVotes(env, phase.id) : Promise.resolve([]),
+    hasDuelVotes ? listPhaseDuelVotes(env, phase.id) : Promise.resolve([]),
+    hasBallotVotes ? listPhaseBallotVotes(env, phase.id) : Promise.resolve([]),
   ])
 
   const computed = computePhaseResults({

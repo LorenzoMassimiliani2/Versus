@@ -19,12 +19,13 @@ import {
  * della loro migrazione la chiusura le considera vuote, così il ciclo della
  * fase resta utilizzabile e la computazione non fallisce su schema assente.
  */
-export async function hasVoteTables(env: Env): Promise<boolean> {
+export async function hasVoteTable(env: Env, name: string): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT COUNT(*) AS count FROM sqlite_master
-     WHERE type = 'table' AND name IN ('duel_votes','ballot_votes')`,
-  ).first<{ count: number }>()
-  return (row?.count ?? 0) === 2
+    `SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = ?`,
+  )
+    .bind(name)
+    .first<{ count: number }>()
+  return (row?.count ?? 0) === 1
 }
 
 export interface PhaseVoterRecord {
