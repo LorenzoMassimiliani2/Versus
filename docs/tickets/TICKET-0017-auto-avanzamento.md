@@ -32,4 +32,21 @@ source: docs/features/FEAT-0007-ciclo-fase-avanzamento.md
 
 ## Choices
 
-Nessuna scelta registrata.
+- Apertura estratta in `src/worker/phase-open.ts` (`openPendingPhase`,
+  `computeEntrants`): la rotta manuale e l'avanzamento automatico usano lo
+  stesso codice, inclusi calcolo degli elementi, ripescaggio e transazione.
+- L'avanzamento automatico è applicato sia alla chiusura esplicita sia alla
+  chiusura lazy dal piano (`GET /api/tournaments/:id/phases`); dopo una chiusura
+  lazy il piano viene riletto per mostrare la fase appena aperta.
+- La risposta di chiusura espone `autoAdvance: { status, phaseId?, reason?,
+  error? }` solo quando `settings.autoAdvance` è attivo. Con l'opzione disattiva
+  il campo è assente. L'errore di apertura è quindi visibile all'organizzatore.
+- L'idempotenza sfrutta il claim condizionale `status = 'pending'` già usato
+  dall'apertura manuale. Una richiesta concorrente che trova la fase già `open`
+  riporta `status: 'opened'` senza duplicare lo stato operativo.
+- Se la fase chiusa è l'ultima e `autoAdvance` è attivo, il torneo passa a
+  `concluded` con `concluded_at` valorizzato; nessuna fase viene aperta.
+- Ripetere la chiusura su una fase già `closed` ritenta l'eventuale apertura
+  automatica fallita; senza errori resta idempotente.
+- Il blocco di `settings.autoAdvance` dopo l'apertura della prima fase era già
+  presente (TICKET-0016); non è stato modificato.

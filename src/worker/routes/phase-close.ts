@@ -17,11 +17,8 @@ import {
   computePhaseResults,
   type ResultsPayload,
 } from '../../domain/phase-results'
-import {
-  defaultPhaseConfig,
-  type PhaseAdvance,
-  type PhaseConfig,
-} from '../../domain/phases'
+import { parseTournamentSettings } from '../../domain/tournament-settings'
+import { openPendingPhase, phaseAdvance, phaseConfig } from '../phase-open'
 import { serialisePhase } from './phases'
 
 export type CloseTriggerReason = 'deadline' | 'all_voted'
@@ -47,14 +44,6 @@ function parseJson<T>(raw: string, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-function phaseConfig(phase: PhaseRecord): PhaseConfig {
-  return parseJson<PhaseConfig>(phase.config, defaultPhaseConfig())
-}
-
-function phaseAdvance(phase: PhaseRecord): PhaseAdvance {
-  return parseJson<PhaseAdvance>(phase.advance, { type: 'all' })
 }
 
 function serialiseResult(row: PhaseResultRecord): SerialisedResult {
@@ -238,6 +227,62 @@ async function closePhase(
   }
 }
 
+export interface AutoAdvanceOutcome {
+  status: 'opened' | 'concluded' | 'skipped' | 'failed'
+  phaseId?: string
+  reason?: string
+  error?: string
+}
+
+/**
+ * Se `settings.autoAdvance` è attivo apre la fase immediatamente successiva
+ * quando è `pending`. Un errore di apertura non annulla la chiusura: viene
+ * restituito all'organizzatore e la fase successiva resta `pending`.
+ */
+export async function applyAutoAdvance(
+  env: Env,
+  closedPhase: PhaseRecord,
+  now: number,
+): Promise<AutoAdvanceOutcome | null> {
+  const tournament = await findTournamentById(env, closedPhase.tournament_id)
+  if (!tournament) return null
+  if (!parseTournamentSettings(tournament.settings).autoAdvance) return null
+
+  const next = await env.DB.prepare(
+    `SELECT id, tournament_id, position, name, formula, vote_type, config, advance,
+       status, opened_at, closed_at, created_at, updated_at
+     FROM phases WHERE tournament_id = ? AND position = ?`,
+  )
+    .bind(closedPhase.tournament_id, closedPhase.position + 1)
+    .first<PhaseRecord>()
+
+  if (!next) {
+    const timestamp = new Date(now).toISOString()
+    await env.DB.prepare(
+      `UPDATE tournaments SET status = 'concluded', concluded_at = COALESCE(concluded_at, ?),
+         updated_at = ?
+       WHERE id = ? AND status = 'running'`,
+    )
+      .bind(timestamp, timestamp, closedPhase.tournament_id)
+      .run()
+    return { status: 'concluded' }
+  }
+
+  if (next.status !== 'pending') {
+    return { status: 'skipped', reason: 'next_not_pending' }
+  }
+
+  const opened = await openPendingPhase(env, next, { now })
+  if (!opened.ok) {
+    // Due chiusure concorrenti: se l'altra richiesta ha già aperto la fase,
+    // l'apertura è comunque avvenuta una sola volta.
+    const current = await findPhaseById(env, next.id)
+    if (current?.status === 'open') return { status: 'opened', phaseId: current.id }
+    return { status: 'failed', error: opened.error }
+  }
+  return { status: 'opened', phaseId: opened.phase.id }
+}
+
 /**
  * Chiude la fase se un trigger configurato è scaduto o soddisfatto. Usata dalle
  * richieste di stato della fase per applicare la regola lazy.
@@ -252,6 +297,9 @@ export async function closePhaseIfDue(
   if (!trigger) return phase
   const outcome = await closePhase(env, phase, now)
   if ('error' in outcome) return phase
+  if (outcome.phase.status === 'closed') {
+    await applyAutoAdvance(env, outcome.phase, now)
+  }
   return outcome.phase
 }
 
@@ -278,15 +326,24 @@ async function closePhaseHandler(
   }
 
   if (phase.status === 'closed') {
-    const resultRow = await findLatestResult(env, phase.id)
+    // Ripetere la chiusura è idempotente; un eventuale avanzamento automatico
+    // fallito in precedenza può essere ritentato.
+    const [resultRow, autoAdvance] = await Promise.all([
+      findLatestResult(env, phase.id),
+      applyAutoAdvance(env, phase, now),
+    ])
     return json({
       phase: serialisePhase(phase),
       result: resultRow ? serialiseResult(resultRow) : null,
+      ...(autoAdvance ? { autoAdvance } : {}),
     })
   }
 
   const outcome = await closePhase(env, phase, now)
   if ('error' in outcome) return apiError(409, outcome.error)
+
+  const autoAdvance =
+    outcome.phase.status === 'closed' ? await applyAutoAdvance(env, outcome.phase, now) : null
 
   return json({
     phase: serialisePhase(outcome.phase),
@@ -294,6 +351,7 @@ async function closePhaseHandler(
     ...(outcome.phase.status === 'awaiting_resolution'
       ? { unresolved: outcome.unresolved }
       : {}),
+    ...(autoAdvance ? { autoAdvance } : {}),
   })
 }
 
