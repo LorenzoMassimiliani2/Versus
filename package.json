@@ -19,7 +19,8 @@
     "dev:api": "npm run build && wrangler dev",
     "dev:all": "concurrently -k -n api,web -c yellow,cyan \"npm:dev:api\" \"npm:dev\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "admin:create": "node --experimental-strip-types scripts/create-admin.ts"
   },
   "dependencies": {
     "@lucide/vue": "^1.69.0",
