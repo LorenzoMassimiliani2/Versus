@@ -37,8 +37,8 @@ type DetailTab =
 const activeTab = ref<DetailTab>('details')
 const organizerTabs: Array<{ id: DetailTab; label: string }> = [
   { id: 'details', label: strings.wizard.steps.details },
-  { id: 'elements', label: strings.wizard.steps.elements },
   { id: 'fields', label: strings.wizard.steps.fields },
+  { id: 'elements', label: strings.wizard.steps.elements },
   { id: 'participants', label: strings.wizard.steps.participants },
   { id: 'plan', label: strings.wizard.steps.plan },
   { id: 'preview', label: strings.wizard.steps.preview },

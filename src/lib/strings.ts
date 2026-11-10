@@ -80,8 +80,8 @@ export const strings = {
     stepsLabel: 'Passi della pubblicazione',
     steps: {
       details: 'Dettagli',
-      elements: 'Elementi',
       fields: 'Campi',
+      elements: 'Elementi',
       participants: 'Partecipanti',
       plan: 'Piano',
       preview: 'Anteprima',

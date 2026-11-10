@@ -15,7 +15,7 @@ import { usePhasesStore } from '@/stores/phases'
 import { usePlanPreviewStore } from '@/stores/plan-preview'
 import { useTournamentsStore } from '@/stores/tournaments'
 
-const STEPS = ['details', 'elements', 'fields', 'participants', 'plan', 'preview', 'publish'] as const
+const STEPS = ['details', 'fields', 'elements', 'participants', 'plan', 'preview', 'publish'] as const
 type Step = (typeof STEPS)[number]
 
 const route = useRoute()

@@ -104,7 +104,7 @@ describe('TournamentWizardView', () => {
     const fetchMock = stubFetch()
     const { wrapper } = await mountWizard()
 
-    for (const step of ['details', 'elements', 'fields', 'participants', 'plan', 'preview', 'publish']) {
+    for (const step of ['details', 'fields', 'elements', 'participants', 'plan', 'preview', 'publish']) {
       expect(wrapper.find(`[data-testid="wizard-step-${step}"]`).exists()).toBe(true)
     }
 
