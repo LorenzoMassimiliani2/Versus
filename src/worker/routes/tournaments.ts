@@ -1,4 +1,7 @@
 import type { AuthContext } from '../auth/session'
+import { defaultPhaseConfig, type PhaseAdvance, type PhaseConfig } from '../../domain/phases'
+import type { CustomFieldDefinition } from '../../domain/custom-values'
+import { validatePlan, type PlanInput } from '../../domain/plan'
 import {
   DEFAULT_TOURNAMENT_SETTINGS,
   parseTournamentSettings,
@@ -23,6 +26,9 @@ import {
   type TournamentRecord,
   type TournamentWithRole,
 } from '../db/tournaments'
+import { listCustomFields, listElements } from '../db/elements'
+import { countActiveParticipants } from '../db/participants'
+import { listPhases } from '../db/phases'
 import { apiError, json } from '../http/json'
 
 const NAME_MAX_LENGTH = 120
@@ -126,6 +132,14 @@ function parseCreateInput(value: unknown): TournamentInput | null {
     input.settings = settings
   }
   return input
+}
+
+function parseJson<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
 }
 
 function parsePatchInput(value: unknown): TournamentInput | null {
@@ -306,6 +320,60 @@ async function patchTournamentHandler(
   return json({ tournament: toDetail(updated, role, organizers) })
 }
 
+async function previewHandler(
+  env: Env,
+  auth: AuthContext,
+  tournamentId: string,
+  now: number,
+): Promise<Response> {
+  const tournament = await findTournamentById(env, tournamentId)
+  if (!tournament) return apiError(404, 'not_found')
+
+  const role = await findOrganizerRole(env, tournamentId, auth.user.id)
+  if (!role) return apiError(403, 'forbidden')
+
+  const [elements, fields, phases, activeParticipants] = await Promise.all([
+    listElements(env, tournamentId),
+    listCustomFields(env, tournamentId),
+    listPhases(env, tournamentId),
+    countActiveParticipants(env, tournamentId),
+  ])
+
+  const input: PlanInput = {
+    tournament: {
+      name: tournament.name,
+      slug: tournament.slug,
+      settings: parseTournamentSettings(tournament.settings),
+    },
+    elements: elements.map((element) => ({
+      id: element.id,
+      name: element.name,
+      imageUrl: element.image_url,
+      customValues: parseJson<Record<string, unknown>>(element.custom_values, {}),
+      position: element.position,
+    })),
+    fields: fields.map((field): CustomFieldDefinition => ({ key: field.key, type: field.type })),
+    phases: phases.map((phase) => ({
+      position: phase.position,
+      name: phase.name,
+      formula: phase.formula,
+      voteType: phase.vote_type,
+      config: parseJson<PhaseConfig>(phase.config, defaultPhaseConfig()),
+      advance: parseJson<PhaseAdvance>(phase.advance, { type: 'all' }),
+    })),
+    activeParticipants,
+    now: new Date(now),
+  }
+
+  const validation = validatePlan(input)
+  return json({
+    valid: validation.valid,
+    errors: validation.errors,
+    warnings: validation.warnings,
+    preview: validation.preview,
+  })
+}
+
 /**
  * Instrada le richieste sotto `/api/tournaments`. Restituisce `null` quando il
  * percorso o il metodo non appartengono all'area tornei.
@@ -324,6 +392,11 @@ export async function handleTournamentsRoute(
     if (method === 'GET') return listTournamentsHandler(env, auth)
     if (method === 'POST') return createTournamentHandler(request, env, auth, now)
     return null
+  }
+
+  const previewMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/preview$/)
+  if (previewMatch && method === 'GET') {
+    return previewHandler(env, auth, decodeURIComponent(previewMatch[1]!), now)
   }
 
   const detailMatch = pathname.match(/^\/api\/tournaments\/([^/]+)$/)
