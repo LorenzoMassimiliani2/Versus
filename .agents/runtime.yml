@@ -1,0 +1,18 @@
+# Comandi di progetto disponibili all'agente.
+commands:
+  dev:
+    description: Avvia frontend e API in locale
+    workdir: .
+    command: npm run dev:all
+  test:
+    description: Esegue la suite di test
+    workdir: .
+    command: npm test
+  type-check:
+    description: Controlla i tipi
+    workdir: .
+    command: npm run type-check
+  build:
+    description: Compila frontend e worker
+    workdir: .
+    command: npm run build

@@ -41,13 +41,20 @@ docs/
   spec/
   decisioni/
   tickets/
+  features/
+  orchestrator/
+  guides/
 ```
 
 ## Convenzioni
 
-- ticket tracker: `docs/tickets/` (backend: github-source)
+- ticket tracker: `docs/tickets/` (backend: local)
 - spec: `docs/spec/`
 - decisioni (ADR): `docs/decisioni/`
+- feature ledger: `docs/features/`
+- log di orchestrazione: `docs/orchestrator/`
+- guide di test: `docs/guides/`
+- learning inbox: `.agents/learnings.md`
 - migrazioni D1: `migrations/`, applicate in locale con `npm run db:migrate:local` e in produzione dalla CI solo su `main`
 - sviluppo locale: `npm run dev:all` (Vite su :5173 + `wrangler dev` su :8787, proxy `/api`)
 - date: salvate in UTC (`ISO 8601`); UI nel fuso del dispositivo; default di creazione `Europe/Rome`

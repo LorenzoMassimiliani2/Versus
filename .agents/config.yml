@@ -1,0 +1,9 @@
+workflow:
+  routing:
+    default_tier: general
+safety:
+  readonly_paths:
+    - external/
+    - node_modules/
+tickets:
+  backend: local

@@ -1,0 +1,9 @@
+name: versus
+description: PWA mobile-first per organizzare tornei con gironi, eliminazione diretta, classifica, voti e crediti.
+language: TypeScript
+topology: standalone
+roles:
+  - application
+stack:
+  execution: [prime-agent]
+  governance: [meta agent, scripts, docs, adr]
