@@ -7,6 +7,7 @@ import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
 import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
+import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
 import { strings, tournamentStatusLabel } from '@/lib/strings'
 import { useElementsStore } from '@/stores/elements'
 import { useTournamentsStore } from '@/stores/tournaments'
@@ -125,6 +126,7 @@ async function submitEdit(): Promise<void> {
       <template v-if="isOrganizer">
         <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
         <PhasesPanel :tournament-id="tournamentId" :editable="participantsEditable" />
+        <PlanPreviewPanel :tournament-id="tournamentId" />
         <CustomFieldsPanel :tournament-id="tournamentId" />
         <ElementsPanel :tournament-id="tournamentId" />
       </template>

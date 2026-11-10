@@ -204,6 +204,32 @@ export const strings = {
       sequential: 'Sequenziale',
     },
   },
+  planPreview: {
+    title: 'Anteprima del piano',
+    subtitle: 'Errori bloccanti, avvisi e struttura calcolata prima della pubblicazione.',
+    refresh: 'Aggiorna anteprima',
+    refreshing: 'Aggiornamento…',
+    loading: 'Calcolo dell\'anteprima…',
+    valid: 'Piano valido',
+    invalid: 'Piano non valido',
+    errorsTitle: 'Errori bloccanti',
+    warningsTitle: 'Avvisi',
+    structureTitle: 'Struttura calcolata',
+    noErrors: 'Nessun errore bloccante.',
+    noWarnings: 'Nessun avviso.',
+    noGroups: 'Nessun girone.',
+    noMatches: 'Nessun accoppiamento.',
+    phase: (position: number, name: string) =>
+      name ? `Fase ${position} · ${name}` : `Fase ${position}`,
+    input: 'In ingresso',
+    output: 'In uscita',
+    groups: 'Gironi',
+    byes: 'Bye',
+    matches: 'Accoppiamenti',
+    direct: 'qualificati diretti',
+    repechage: 'ripescati',
+    byeMatch: 'bye',
+  },
   fields: {
     title: 'Campi personalizzati',
     subtitle: 'Fino a 10 campi per torneo. La chiave identifica il valore, l\'etichetta è ciò che vedono gli utenti.',
@@ -324,6 +350,45 @@ export function participantsErrorMessage(code: string | undefined): string {
 
 export function elementsErrorMessage(code: string | undefined): string {
   return (code && ELEMENT_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const PLAN_ISSUE_MESSAGES: Record<string, string> = {
+  tournament_name_missing: 'Il torneo deve avere un nome.',
+  tournament_slug_missing: 'Manca lo slug del torneo.',
+  elements_min: 'Servono almeno 2 elementi.',
+  phases_min: 'Serve almeno una fase.',
+  participants_min: 'Serve almeno un partecipante attivo.',
+  participants_max: 'Massimo 20 partecipanti attivi.',
+  fields_too_many: 'Massimo 10 campi personalizzati.',
+  phase_positions: 'Le posizioni delle fasi devono essere contigue da 1.',
+  phase_input_too_small: 'La fase riceve meno di 2 elementi.',
+  vote_type_not_allowed: 'La scheda non è ammessa per questa formula.',
+  advance_type_not_allowed: 'L avanzamento non è ammesso per questa formula.',
+  winner_not_last: 'Solo l ultima fase può qualificare il vincitore.',
+  final_qualifies_multiple: 'L ultima fase deve qualificare un solo elemento.',
+  phase_qualifies_too_few: 'Una fase non finale deve qualificare almeno 2 elementi.',
+  group_size: 'La dimensione del girone deve essere almeno 2.',
+  group_empty: 'Non si forma alcun girone.',
+  top_per_group_over_size: 'I qualificati per girone devono essere meno della dimensione del girone.',
+  top_global_over_input: 'I qualificati globali superano gli elementi in ingresso.',
+  ranking_scale_invalid: 'La scala punti deve essere positiva, decrescente e non più lunga degli elementi.',
+  credits_invalid: 'I crediti per votante o il massimo per sfida non sono validi.',
+  deadline_trigger_without_deadline: 'La chiusura per deadline richiede una scadenza.',
+  repechage_target_not_above_direct: 'Il ripescaggio deve portare a più qualificati diretti.',
+  repechage_target_over_input: 'Il ripescaggio supera gli elementi in ingresso.',
+  repechage_not_enough_excluded: 'Non ci sono abbastanza esclusi per il ripescaggio.',
+  repechage_criterion_unavailable: 'Un criterio di ripescaggio non è applicabile alla fase precedente.',
+  elimination_advance_invalid: 'Le fasi di eliminazione usano tutti i vincitori; la finale usa il vincitore.',
+  element_name_missing: 'Un elemento non ha nome.',
+  element_image_missing: 'Un elemento non ha immagine.',
+  element_values_invalid: 'I valori di un elemento non rispettano i campi.',
+  element_unknown_field: 'Un elemento usa un campo che non esiste.',
+  deadline_not_after_previous: 'La scadenza non è successiva a quella della fase precedente.',
+  deadline_in_past: 'La scadenza è già passata.',
+}
+
+export function planIssueMessage(code: string): string {
+  return PLAN_ISSUE_MESSAGES[code] ?? code
 }
 
 const PHASES_ERROR_MESSAGES: Record<string, string> = {
