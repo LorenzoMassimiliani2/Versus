@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { Moon } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { initTheme, useTheme } from '@/composables/theme'
 import { strings } from '@/lib/strings'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const router = useRouter()
+const { theme, toggleTheme } = useTheme()
 const open = ref(false)
 const container = ref<HTMLElement | null>(null)
 
@@ -29,6 +32,7 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => {
+  initTheme()
   document.addEventListener('click', close)
   document.addEventListener('keydown', onKeydown)
 })
@@ -69,6 +73,28 @@ async function signOut(): Promise<void> {
           {{ strings.adminUsers.admin }}
         </p>
       </div>
+      <div class="my-1 h-px bg-border" />
+      <button
+        id="user-menu-theme"
+        class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-muted"
+        type="button"
+        role="menuitemcheckbox"
+        :aria-checked="theme === 'dark'"
+        @click="toggleTheme"
+      >
+        <Moon class="size-4 shrink-0" aria-hidden="true" />
+        <span>{{ strings.theme.dark }}</span>
+        <span
+          class="ml-auto flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors"
+          :class="theme === 'dark' ? 'bg-primary' : 'bg-muted'"
+          aria-hidden="true"
+        >
+          <span
+            class="size-4 rounded-full bg-background transition-transform"
+            :class="theme === 'dark' ? 'translate-x-4' : ''"
+          />
+        </span>
+      </button>
       <button
         id="user-menu-logout"
         class="w-full rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-muted"

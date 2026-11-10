@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { MoreVertical } from '@lucide/vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppModal from '@/components/ui/AppModal.vue'
 import { strings } from '@/lib/strings'
@@ -19,10 +20,36 @@ const resetFor = ref<string | null>(null)
 const resetPasswordValue = ref('')
 const resetSaving = ref(false)
 const resetDoneFor = ref<string | null>(null)
+const actionMenuFor = ref<string | null>(null)
 
 onMounted(() => {
   void users.search('')
+  document.addEventListener('click', closeActionMenu)
+  document.addEventListener('keydown', onKeydown)
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeActionMenu)
+  document.removeEventListener('keydown', onKeydown)
+})
+
+function toggleActions(user: AdminUser): void {
+  actionMenuFor.value = actionMenuFor.value === user.id ? null : user.id
+}
+
+function closeActionMenu(event: MouseEvent): void {
+  const target = event.target as Element | null
+  if (!target?.closest('[data-user-actions]')) actionMenuFor.value = null
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') actionMenuFor.value = null
+}
+
+function chooseAction(action: () => void | Promise<void>): void {
+  actionMenuFor.value = null
+  void action()
+}
 
 async function submitSearch(): Promise<void> {
   await users.search(query.value)
@@ -41,6 +68,7 @@ async function submitCreate(): Promise<void> {
 }
 
 function startReset(user: AdminUser): void {
+  actionMenuFor.value = null
   resetFor.value = user.id
   resetPasswordValue.value = ''
   resetDoneFor.value = null
@@ -134,52 +162,86 @@ async function toggleAdmin(user: AdminUser): Promise<void> {
       {{ strings.adminUsers.empty }}
     </p>
 
-    <ul v-else class="divide-y divide-border rounded-md border border-border">
+    <ul v-else class="divide-y divide-border/60 rounded-2xl bg-muted/20">
       <li v-for="user in users.users" :key="user.id" class="space-y-3 p-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="font-medium">{{ user.username }}</span>
+        <div class="flex items-center gap-3">
           <span
-            v-if="session.user?.id === user.id"
-            class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+            class="flex size-9 shrink-0 items-center justify-center rounded-full bg-background text-sm font-semibold uppercase text-muted-foreground"
           >
-            {{ strings.adminUsers.you }}
+            {{ user.username.charAt(0) }}
           </span>
-          <span
-            v-if="user.isAdmin"
-            class="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground"
-          >
-            {{ strings.adminUsers.admin }}
-          </span>
-          <span
-            v-if="!user.isActive"
-            class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
-          >
-            {{ strings.adminUsers.inactive }}
-          </span>
-        </div>
 
-        <div class="flex flex-wrap gap-2">
-          <button
-            class="h-9 rounded-md border border-border px-3 text-sm font-medium"
-            type="button"
-            @click="toggleActive(user)"
-          >
-            {{ user.isActive ? strings.adminUsers.deactivate : strings.adminUsers.reactivate }}
-          </button>
-          <button
-            class="h-9 rounded-md border border-border px-3 text-sm font-medium"
-            type="button"
-            @click="toggleAdmin(user)"
-          >
-            {{ user.isAdmin ? strings.adminUsers.demote : strings.adminUsers.promote }}
-          </button>
-          <button
-            class="h-9 rounded-md border border-border px-3 text-sm font-medium"
-            type="button"
-            @click="startReset(user)"
-          >
-            {{ strings.adminUsers.resetPassword }}
-          </button>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="truncate font-medium">{{ user.username }}</span>
+              <span
+                v-if="session.user?.id === user.id"
+                class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                {{ strings.adminUsers.you }}
+              </span>
+              <span
+                v-if="user.isAdmin"
+                class="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground"
+              >
+                {{ strings.adminUsers.admin }}
+              </span>
+              <span
+                v-if="!user.isActive"
+                class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                {{ strings.adminUsers.inactive }}
+              </span>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              {{ user.isActive ? strings.adminUsers.active : strings.adminUsers.inactive }}
+            </p>
+          </div>
+
+          <div class="relative shrink-0" data-user-actions>
+            <button
+              :id="`user-actions-${user.id}`"
+              class="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              type="button"
+              aria-haspopup="menu"
+              :aria-expanded="actionMenuFor === user.id"
+              :aria-label="strings.adminUsers.actionsFor(user.username)"
+              @click="toggleActions(user)"
+            >
+              <MoreVertical class="size-5" aria-hidden="true" />
+            </button>
+
+            <div
+              v-if="actionMenuFor === user.id"
+              class="absolute right-0 top-11 z-30 w-48 rounded-xl border border-border bg-background p-1 shadow-lg"
+              role="menu"
+            >
+              <button
+                class="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                type="button"
+                role="menuitem"
+                @click="chooseAction(() => toggleActive(user))"
+              >
+                {{ user.isActive ? strings.adminUsers.deactivate : strings.adminUsers.reactivate }}
+              </button>
+              <button
+                class="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                type="button"
+                role="menuitem"
+                @click="chooseAction(() => toggleAdmin(user))"
+              >
+                {{ user.isAdmin ? strings.adminUsers.demote : strings.adminUsers.promote }}
+              </button>
+              <button
+                class="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                type="button"
+                role="menuitem"
+                @click="chooseAction(() => startReset(user))"
+              >
+                {{ strings.adminUsers.resetPassword }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <p v-if="resetDoneFor === user.id" class="text-sm text-muted-foreground" role="status">

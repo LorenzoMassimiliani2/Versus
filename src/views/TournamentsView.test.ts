@@ -79,6 +79,7 @@ describe('TournamentsView', () => {
 
     expect(wrapper.text()).toContain('Torneo partecipato')
     expect(wrapper.text()).not.toContain('Torneo organizzato')
+    expect(wrapper.find('#edit-tournament-t2').exists()).toBe(false)
 
     await router.push({ name: 'home', query: { tab: 'organizing' } })
     await flushPromises()
@@ -86,6 +87,9 @@ describe('TournamentsView', () => {
     expect(wrapper.text()).toContain('Torneo organizzato')
     expect(wrapper.text()).not.toContain('Torneo partecipato')
     expect(router.currentRoute.value.query.tab).toBe('organizing')
+    expect(wrapper.get('#edit-tournament-t1').attributes('href')).toBe(
+      '/tornei/t1#tournament-edit-form',
+    )
   })
 
   it('crea un torneo e apre il dettaglio', async () => {

@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import UserMenu from './UserMenu.vue'
+import { setTheme } from '@/composables/theme'
 import { useSessionStore } from '@/stores/session'
 
 function emptyView() {
@@ -34,6 +35,9 @@ async function mountMenu(options: { isAdmin?: boolean } = {}) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  setTheme('light')
+  localStorage.clear()
+  document.documentElement.classList.remove('dark')
 })
 
 describe('UserMenu', () => {
@@ -46,6 +50,19 @@ describe('UserMenu', () => {
     await wrapper.get('#user-menu-button').trigger('click')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.get('#user-menu-logout').text()).toBe('Esci')
+  })
+
+  it('attiva il tema scuro dal menu', async () => {
+    const { wrapper } = await mountMenu()
+
+    await wrapper.get('#user-menu-button').trigger('click')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(wrapper.get('#user-menu-theme').attributes('aria-checked')).toBe('false')
+
+    await wrapper.get('#user-menu-theme').trigger('click')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(wrapper.get('#user-menu-theme').attributes('aria-checked')).toBe('true')
+    expect(localStorage.getItem('versus-theme')).toBe('dark')
   })
 
   it('mostra il ruolo admin e fa logout tornando al login', async () => {

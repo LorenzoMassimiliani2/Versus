@@ -3,6 +3,10 @@ export const strings = {
   common: {
     close: 'Chiudi',
   },
+  theme: {
+    dark: 'Tema scuro',
+    light: 'Tema chiaro',
+  },
   login: {
     title: 'Accedi',
     subtitle: 'Inserisci le credenziali assegnate dall\'amministratore.',
@@ -27,6 +31,9 @@ export const strings = {
     dismiss: 'Ho copiato la password',
     empty: 'Nessun utente trovato.',
     loading: 'Caricamento…',
+    actions: 'Azioni utente',
+    actionsFor: (username: string) => `Azioni per ${username}`,
+    active: 'Attivo',
     inactive: 'Disattivato',
     admin: 'Admin',
     you: 'tu',
@@ -59,6 +66,7 @@ export const strings = {
     emptyParticipating: 'Nessun torneo a cui partecipi.',
     emptyOrganizing: 'Non stai organizzando nessun torneo.',
     open: 'Apri',
+    edit: 'Modifica torneo',
     status: {
       draft: 'Bozza',
       published: 'Pubblicato',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FileText, Eye, Image as ImageIcon, Rocket, Route, SlidersHorizontal, Users } from '@lucide/vue'
-import { computed, onMounted, ref, type Component } from 'vue'
+import { computed, nextTick, onMounted, ref, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import BackLink from '@/components/ui/BackLink.vue'
@@ -131,6 +131,10 @@ const saved = ref(false)
 onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
   syncForm()
+  if (route.hash) {
+    await nextTick()
+    document.querySelector(route.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   if (isOrganizer.value) {
     await Promise.all([
       elements.load(tournamentId.value),

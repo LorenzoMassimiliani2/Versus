@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Pencil } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
@@ -79,10 +80,14 @@ async function submitCreate(): Promise<void> {
     </p>
     <p v-else-if="visible.length === 0" class="text-sm text-muted-foreground">{{ emptyMessage }}</p>
 
-    <ul v-else class="divide-y divide-border rounded-md border border-border">
-      <li v-for="tournament in visible" :key="tournament.id">
+    <ul v-else class="divide-y divide-border rounded-2xl bg-muted/20">
+      <li
+        v-for="tournament in visible"
+        :key="tournament.id"
+        class="flex items-center gap-2 px-3 py-2"
+      >
         <RouterLink
-          class="block space-y-2 p-3"
+          class="min-w-0 flex-1 space-y-2 py-1"
           :to="{ name: 'tournament', params: { id: tournament.id } }"
         >
           <div class="flex flex-wrap items-center gap-2">
@@ -97,6 +102,20 @@ async function submitCreate(): Promise<void> {
           <p v-if="tournament.description" class="line-clamp-2 text-sm text-muted-foreground">
             {{ tournament.description }}
           </p>
+        </RouterLink>
+        <RouterLink
+          v-if="activeTab === 'organizing'"
+          :id="`edit-tournament-${tournament.id}`"
+          class="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          :to="{
+            name: 'tournament',
+            params: { id: tournament.id },
+            hash: '#tournament-edit-form',
+          }"
+          :aria-label="`Modifica ${tournament.name}`"
+          :title="strings.tournaments.edit"
+        >
+          <Pencil class="size-4" aria-hidden="true" />
         </RouterLink>
       </li>
     </ul>

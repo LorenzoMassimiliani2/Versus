@@ -65,6 +65,12 @@ function rowFor(wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], usern
   return row
 }
 
+function actionButton(row: ReturnType<typeof rowFor>, text: string) {
+  const button = row.findAll('button').find((candidate) => candidate.text() === text)
+  if (!button) throw new Error(`Azione "${text}" non trovata`)
+  return button
+}
+
 function calls(fetchMock: ReturnType<typeof vi.fn>) {
   return fetchMock.mock.calls.map(([input, init]) => ({
     url: String(input),
@@ -90,6 +96,8 @@ describe('UsersView', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('bruno')
     expect(wrapper.text()).toContain('Admin')
+    expect(wrapper.text()).not.toContain('Disattiva')
+    expect(wrapper.find('#user-actions-u1').exists()).toBe(true)
   })
 
   it('cerca gli utenti per username', async () => {
@@ -154,8 +162,11 @@ describe('UsersView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper } = await mountView()
-    const brunoRow = rowFor(wrapper, 'bruno')
-    await brunoRow.findAll('button').find((button) => button.text() === 'Disattiva')!.trigger('click')
+    let brunoRow = rowFor(wrapper, 'bruno')
+    expect(brunoRow.text()).not.toContain('Disattiva')
+    await brunoRow.get('[aria-haspopup="menu"]').trigger('click')
+    brunoRow = rowFor(wrapper, 'bruno')
+    await actionButton(brunoRow, 'Disattiva').trigger('click')
     await flushPromises()
 
     expect(calls(fetchMock).at(-1)).toEqual({
@@ -164,7 +175,9 @@ describe('UsersView', () => {
       body: { isActive: false },
     })
     expect(wrapper.text()).toContain('Disattivato')
-    expect(buttonByText(wrapper, 'Riattiva').exists()).toBe(true)
+    brunoRow = rowFor(wrapper, 'bruno')
+    await brunoRow.get('[aria-haspopup="menu"]').trigger('click')
+    expect(actionButton(rowFor(wrapper, 'bruno'), 'Riattiva').exists()).toBe(true)
   })
 
   it('promuove un utente ad admin', async () => {
@@ -177,8 +190,10 @@ describe('UsersView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper } = await mountView()
-    const brunoRow = rowFor(wrapper, 'bruno')
-    await brunoRow.findAll('button').find((button) => button.text() === 'Promuovi ad admin')!.trigger('click')
+    let brunoRow = rowFor(wrapper, 'bruno')
+    await brunoRow.get('[aria-haspopup="menu"]').trigger('click')
+    brunoRow = rowFor(wrapper, 'bruno')
+    await actionButton(brunoRow, 'Promuovi ad admin').trigger('click')
     await flushPromises()
 
     expect(calls(fetchMock).at(-1)).toEqual({
@@ -187,7 +202,9 @@ describe('UsersView', () => {
       body: { isAdmin: true },
     })
     expect(rowFor(wrapper, 'bruno').text()).toContain('Admin')
-    expect(brunoRow.text()).toContain('Revoca admin')
+    brunoRow = rowFor(wrapper, 'bruno')
+    await brunoRow.get('[aria-haspopup="menu"]').trigger('click')
+    expect(actionButton(rowFor(wrapper, 'bruno'), 'Revoca admin').exists()).toBe(true)
   })
 
   it('reimposta la password di un utente', async () => {
@@ -200,8 +217,10 @@ describe('UsersView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper } = await mountView()
-    const brunoRow = rowFor(wrapper, 'bruno')
-    await brunoRow.findAll('button').find((button) => button.text() === 'Reset password')!.trigger('click')
+    let brunoRow = rowFor(wrapper, 'bruno')
+    await brunoRow.get('[aria-haspopup="menu"]').trigger('click')
+    brunoRow = rowFor(wrapper, 'bruno')
+    await actionButton(brunoRow, 'Reset password').trigger('click')
     await wrapper.get('#reset-password-u2').setValue('nuovapassword')
     await wrapper.get('#reset-form-u2').trigger('submit')
     await flushPromises()
