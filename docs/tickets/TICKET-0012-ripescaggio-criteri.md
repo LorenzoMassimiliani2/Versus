@@ -1,7 +1,7 @@
 ---
 id: TICKET-0012
 title: Selezionare i ripescati
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0010, TICKET-0011]
 blocks: [TICKET-0015, TICKET-0021]
