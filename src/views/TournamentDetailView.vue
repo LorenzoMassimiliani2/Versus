@@ -29,6 +29,9 @@ const openVotePhases = computed(() =>
     ? []
     : phases.phases.filter((phase) => phase.status === 'open' && phase.voteType === 'duel'),
 )
+const closedPhases = computed(() =>
+  phases.phases.filter((phase) => phase.status === 'closed'),
+)
 
 const editName = ref('')
 const editDescription = ref('')
@@ -41,7 +44,7 @@ onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
   syncForm()
   if (isOrganizer.value) await elements.load(tournamentId.value)
-  else await phases.load(tournamentId.value)
+  await phases.load(tournamentId.value)
 })
 
 function syncForm(): void {
@@ -113,6 +116,19 @@ async function submitEdit(): Promise<void> {
           :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
         >
           {{ strings.tournaments.publishWizard }}
+        </RouterLink>
+      </div>
+
+      <div v-if="closedPhases.length > 0" class="space-y-2">
+        <h2 class="text-base font-semibold">{{ strings.results.title }}</h2>
+        <RouterLink
+          v-for="phase in closedPhases"
+          :id="`results-phase-${phase.id}`"
+          :key="phase.id"
+          class="inline-flex h-11 items-center rounded-md border border-border px-4 text-sm font-medium"
+          :to="{ name: 'phase-results', params: { id: tournamentId, phaseId: phase.id } }"
+        >
+          {{ strings.results.view }} · {{ phase.name }}
         </RouterLink>
       </div>
 

@@ -43,6 +43,11 @@ async function mountView(): Promise<{ wrapper: ReturnType<typeof mount> }> {
       { path: '/', name: 'home', component: emptyView() },
       { path: '/tornei/:id', name: 'tournament', component: TournamentDetailView },
       { path: '/tornei/:id/wizard', name: 'tournament-wizard', component: emptyView() },
+      {
+        path: '/tornei/:id/fase/:phaseId/risultati',
+        name: 'phase-results',
+        component: emptyView(),
+      },
     ],
   })
   await router.push('/tornei/t1')
@@ -144,6 +149,41 @@ describe('TournamentDetailView', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).not.toContain('Aggiungi partecipante')
     expect(wrapper.find('#tournament-edit-form').exists()).toBe(false)
+  })
+
+  it('collega i risultati delle fasi chiuse dal dettaglio', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/phases')) {
+          return jsonResponse({
+            phases: [
+              {
+                id: 'p1',
+                position: 1,
+                name: 'Girone',
+                formula: 'group',
+                voteType: 'duel',
+                config: {},
+                advance: { type: 'all' },
+                status: 'closed',
+                openedAt: '2026-11-10T09:00:00.000Z',
+                closedAt: '2026-11-10T10:00:00.000Z',
+                createdAt: '2026-11-10T08:00:00.000Z',
+                updatedAt: '2026-11-10T10:00:00.000Z',
+              },
+            ],
+          })
+        }
+        return jsonResponse({ tournament: { ...DETAIL, role: 'participant', status: 'running' } })
+      }),
+    )
+
+    const { wrapper } = await mountView()
+
+    const link = wrapper.get('#results-phase-p1')
+    expect(link.text()).toBe('Vedi risultati · Girone')
+    expect(link.attributes('href')).toBe('/tornei/t1/fase/p1/risultati')
   })
 
   it('non mostra il form di modifica a chi non è organizzatore', async () => {
