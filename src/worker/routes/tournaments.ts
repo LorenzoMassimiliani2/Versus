@@ -27,6 +27,7 @@ import {
   type TournamentWithRole,
 } from '../db/tournaments'
 import { countStartedPhases } from '../db/phases'
+import { listAuditEntries, writeAudit } from '../db/audit'
 import { apiError, json } from '../http/json'
 import { loadPlanValidation } from '../plan-validation'
 
@@ -185,6 +186,24 @@ function summarize(tournament: TournamentRecord, role: MembershipRole): Tourname
   }
 }
 
+function tournamentAuditState(tournament: TournamentRecord): Record<string, unknown> {
+  return {
+    name: tournament.name,
+    description: tournament.description,
+    coverUrl: tournament.cover_url,
+    settings: parseTournamentSettings(tournament.settings),
+  }
+}
+
+function parseAuditJson(value: string | null): unknown {
+  if (value === null) return null
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return value
+  }
+}
+
 function summarizeOrganizer(organizer: OrganizerRecord): OrganizerSummary {
   return {
     userId: organizer.user_id,
@@ -255,6 +274,15 @@ async function createTournamentHandler(
   const tournament = await findTournamentById(env, id)
   if (!tournament) return apiError(500, 'internal_error')
 
+  await writeAudit(env, now, {
+    tournamentId: id,
+    actorId: auth.user.id,
+    action: 'tournament.create',
+    targetType: 'tournament',
+    targetId: id,
+    after: tournamentAuditState(tournament),
+  })
+
   const organizers = await listOrganizers(env, id)
   return json({ tournament: toDetail(tournament, 'owner', organizers) }, { status: 201 })
 }
@@ -319,8 +347,44 @@ async function patchTournamentHandler(
   const updated = await findTournamentById(env, tournamentId)
   if (!updated) return apiError(500, 'internal_error')
 
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'tournament.update',
+    targetType: 'tournament',
+    targetId: tournamentId,
+    before: tournamentAuditState(tournament),
+    after: tournamentAuditState(updated),
+  })
+
   const organizers = await listOrganizers(env, tournamentId)
   return json({ tournament: toDetail(updated, role, organizers) })
+}
+
+async function auditLogHandler(
+  env: Env,
+  auth: AuthContext,
+  tournamentId: string,
+): Promise<Response> {
+  if (!(await findTournamentById(env, tournamentId))) return apiError(404, 'not_found')
+  if (!(await findOrganizerRole(env, tournamentId, auth.user.id))) {
+    return apiError(403, 'forbidden')
+  }
+
+  const entries = await listAuditEntries(env, tournamentId)
+  return json({
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      actorId: entry.actor_id,
+      actorUsername: entry.actor_username,
+      action: entry.action,
+      targetType: entry.target_type,
+      targetId: entry.target_id,
+      before: parseAuditJson(entry.before),
+      after: parseAuditJson(entry.after),
+      createdAt: entry.created_at,
+    })),
+  })
 }
 
 async function previewHandler(
@@ -401,6 +465,11 @@ export async function handleTournamentsRoute(
   const previewMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/preview$/)
   if (previewMatch && method === 'GET') {
     return previewHandler(env, auth, decodeURIComponent(previewMatch[1]!), now)
+  }
+
+  const auditMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/audit$/)
+  if (auditMatch && method === 'GET') {
+    return auditLogHandler(env, auth, decodeURIComponent(auditMatch[1]!))
   }
 
   const publishMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/publish$/)

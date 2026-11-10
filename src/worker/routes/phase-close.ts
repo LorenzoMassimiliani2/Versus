@@ -1,4 +1,5 @@
 import type { AuthContext } from '../auth/session'
+import { auditStatement } from '../db/audit'
 import { findPhaseById, type PhaseRecord } from '../db/phases'
 import {
   countBallotVotersMissingVotes,
@@ -231,27 +232,26 @@ export async function closePhase(
 
   if (resolution) {
     statements.push(
-      env.DB.prepare(
-        `INSERT INTO audit_log (id, tournament_id, actor_id, action, target_type,
-           target_id, before, after, created_at)
-         SELECT ?, ?, ?, 'phase.resolve', 'phase', ?, ?, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM phase_results WHERE phase_id = ? AND closed_at = ?
-         )`,
-      ).bind(
-        uuidv7(now),
-        phase.tournament_id,
-        resolution.actorId,
-        phase.id,
-        JSON.stringify({ status: 'awaiting_resolution' }),
-        JSON.stringify({
-          status: 'closed',
-          note: resolution.note,
-          resolutions: resolution.resolutions,
-        }),
-        timestamp,
-        phase.id,
-        timestamp,
+      auditStatement(
+        env,
+        now,
+        {
+          tournamentId: phase.tournament_id,
+          actorId: resolution.actorId,
+          action: 'phase.resolve',
+          targetType: 'phase',
+          targetId: phase.id,
+          before: { status: 'awaiting_resolution' },
+          after: {
+            status: 'closed',
+            note: resolution.note,
+            resolutions: resolution.resolutions,
+          },
+        },
+        {
+          sql: 'EXISTS (SELECT 1 FROM phase_results WHERE phase_id = ? AND closed_at = ?)',
+          params: [phase.id, timestamp],
+        },
       ),
     )
   }

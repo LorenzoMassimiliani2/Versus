@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import AuditLogPanel from '@/components/tournament/AuditLogPanel.vue'
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
@@ -195,6 +196,8 @@ async function submitEdit(): Promise<void> {
         :tournament-id="tournamentId"
         :can-manage="isOwner"
       />
+
+      <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
 
       <template v-if="isOrganizer">
         <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />

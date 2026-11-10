@@ -1,3 +1,4 @@
+import { auditStatement } from './db/audit'
 import type { ElementRecord } from './db/elements'
 import { listElements } from './db/elements'
 import { uuidv7 } from './db/ids'
@@ -434,19 +435,15 @@ export async function openPendingPhase(
 
   if (options.override !== undefined && options.actorId) {
     statements.push(
-      env.DB.prepare(
-        `INSERT INTO audit_log (id, tournament_id, actor_id, action, target_type, target_id,
-           before, after, created_at)
-         VALUES (?, ?, ?, 'phase.repechage_override', 'phase', ?, ?, ?, ?)`,
-      ).bind(
-        uuidv7(options.now),
-        phase.tournament_id,
-        options.actorId,
-        phase.id,
-        JSON.stringify(preview.value.repechage?.selected.map((entry) => entry.id) ?? []),
-        JSON.stringify(options.override),
-        timestamp,
-      ),
+      auditStatement(env, options.now, {
+        tournamentId: phase.tournament_id,
+        actorId: options.actorId,
+        action: 'phase.repechage_override',
+        targetType: 'phase',
+        targetId: phase.id,
+        before: preview.value.repechage?.selected.map((entry) => entry.id) ?? [],
+        after: options.override,
+      }),
     )
   }
 

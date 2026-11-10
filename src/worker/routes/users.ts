@@ -5,13 +5,13 @@ import {
   countActiveUsers,
   findUserById,
   findUserByUsername,
-  insertAuditEntry,
   insertUser,
   listUsers,
   updateUserFlags,
   updateUserPassword,
   type UserRecord,
 } from '../db/users'
+import { writeAudit } from '../db/audit'
 import { apiError, json } from '../http/json'
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/
@@ -65,7 +65,7 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-async function writeAudit(
+async function recordUserAudit(
   env: Env,
   auth: AuthContext,
   action: string,
@@ -74,15 +74,13 @@ async function writeAudit(
   after: unknown,
   now: number,
 ): Promise<void> {
-  await insertAuditEntry(env, {
-    id: uuidv7(now),
+  await writeAudit(env, now, {
     actorId: auth.user.id,
     action,
     targetType: 'user',
     targetId: target.id,
-    before: before === null ? null : JSON.stringify(before),
-    after: after === null ? null : JSON.stringify(after),
-    createdAt: new Date(now).toISOString(),
+    before,
+    after,
   })
 }
 
@@ -132,7 +130,7 @@ async function createUserHandler(
   const user = await findUserById(env, id)
   if (!user) return apiError(500, 'internal_error')
 
-  await writeAudit(
+  await recordUserAudit(
     env,
     auth,
     'user.create',
@@ -186,7 +184,7 @@ async function updateUserHandler(
   if (flags.isActive === false) await revokeUserSessions(env, user.id, now)
 
   if (flags.isActive !== undefined) {
-    await writeAudit(
+    await recordUserAudit(
       env,
       auth,
       flags.isActive ? 'user.reactivate' : 'user.deactivate',
@@ -197,7 +195,7 @@ async function updateUserHandler(
     )
   }
   if (flags.isAdmin !== undefined) {
-    await writeAudit(
+    await recordUserAudit(
       env,
       auth,
       flags.isAdmin ? 'user.promote' : 'user.demote',
@@ -230,7 +228,7 @@ async function resetPasswordHandler(
 
   await updateUserPassword(env, user.id, await hashPassword(password))
   await revokeUserSessions(env, user.id, now)
-  await writeAudit(env, auth, 'user.password_reset', user, null, null, now)
+  await recordUserAudit(env, auth, 'user.password_reset', user, null, null, now)
 
   return new Response(null, { status: 204 })
 }

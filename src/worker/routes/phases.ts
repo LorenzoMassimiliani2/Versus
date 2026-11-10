@@ -11,6 +11,7 @@ import {
 } from '../../domain/phases'
 import { parseTournamentSettings } from '../../domain/tournament-settings'
 import { uuidv7 } from '../db/ids'
+import { writeAudit } from '../db/audit'
 import {
   deletePhase,
   findPhaseById,
@@ -214,6 +215,16 @@ async function createPhaseHandler(
 
   const phase = await findPhaseById(env, id)
   if (!phase) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'phase.create',
+    targetType: 'phase',
+    targetId: id,
+    after: { position, ...draftFromRecord(phase) },
+  })
+
   return json({ phase: serialisePhase(phase) }, { status: 201 })
 }
 
@@ -265,6 +276,17 @@ async function patchPhaseHandler(
 
   const updated = await findPhaseById(env, phase.id)
   if (!updated) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId: phase.tournament_id,
+    actorId: auth.user.id,
+    action: 'phase.update',
+    targetType: 'phase',
+    targetId: phase.id,
+    before: { position: phase.position, ...draftFromRecord(phase) },
+    after: { position: updated.position, ...draftFromRecord(updated) },
+  })
+
   return json({ phase: serialisePhase(updated) })
 }
 
@@ -272,6 +294,7 @@ async function deletePhaseHandler(
   env: Env,
   auth: AuthContext,
   phaseId: string,
+  now: number,
 ): Promise<Response> {
   const phase = await findPhaseContext(env, auth, phaseId)
   if (phase instanceof Response) return phase
@@ -284,6 +307,14 @@ async function deletePhaseHandler(
   }
 
   await deletePhase(env, phase)
+  await writeAudit(env, now, {
+    tournamentId: phase.tournament_id,
+    actorId: auth.user.id,
+    action: 'phase.delete',
+    targetType: 'phase',
+    targetId: phase.id,
+    before: { position: phase.position, ...draftFromRecord(phase) },
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -292,6 +323,7 @@ async function reorderPhasesHandler(
   env: Env,
   auth: AuthContext,
   tournamentId: string,
+  now: number,
 ): Promise<Response> {
   const denied = await authorizeOrganizer(env, auth, tournamentId)
   if (denied) return denied
@@ -349,6 +381,17 @@ async function reorderPhasesHandler(
 
   await reorderPhases(env, tournamentId, nextIds)
   const reordered = await listPhases(env, tournamentId)
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'phase.reorder',
+    targetType: 'tournament',
+    targetId: tournamentId,
+    before: { ids: phases.map((phase) => phase.id) },
+    after: { ids: nextIds },
+  })
+
   return json({ phases: reordered.map(serialisePhase) })
 }
 
@@ -390,6 +433,7 @@ export async function handlePhasesRoute(
       env,
       auth,
       decodeURIComponent(orderMatch[1]!),
+      now,
     )
   }
 
@@ -405,7 +449,7 @@ export async function handlePhasesRoute(
   if (phaseMatch) {
     const phaseId = decodeURIComponent(phaseMatch[1]!)
     if (method === 'PATCH') return patchPhaseHandler(request, env, auth, phaseId, now)
-    if (method === 'DELETE') return deletePhaseHandler(env, auth, phaseId)
+    if (method === 'DELETE') return deletePhaseHandler(env, auth, phaseId, now)
     return null
   }
 
