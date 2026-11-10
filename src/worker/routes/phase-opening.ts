@@ -19,7 +19,8 @@ import {
 import { findPhaseById, type PhaseRecord } from '../db/phases'
 import { apiError, json } from '../http/json'
 import { applyAdvance, type AdvanceMatch } from '../../domain/advance'
-import { applyRepechage, type RepechageCandidate } from '../../domain/repechage'
+import { applyRepechage } from '../../domain/repechage'
+import { repechageCandidatesFromResults } from '../../domain/phase-results'
 import { planOpening } from '../../domain/phase-opening'
 import { defaultPhaseConfig, type PhaseAdvance, type PhaseConfig } from '../../domain/phases'
 import { serialisePhase } from './phases'
@@ -87,43 +88,6 @@ function advanceMatches(matches: Awaited<ReturnType<typeof listPhaseMatches>>): 
     winnerElementId: match.winner_element_id,
     bye: match.status === 'bye',
   }))
-}
-
-function candidatesFromResults(
-  excluded: string[],
-  results: ResultsPayload | null,
-): RepechageCandidate[] {
-  const byId = new Map<string, RepechageCandidate>(
-    excluded.map((elementId) => [elementId, { elementId }]),
-  )
-
-  for (const group of results?.groups ?? []) {
-    for (const row of group.ranking ?? []) {
-      const candidate = row.elementId ? byId.get(row.elementId) : undefined
-      if (!candidate) continue
-      if (typeof row.score === 'number') candidate.groupPoints = row.score
-      if (typeof row.firstPreferences === 'number') {
-        candidate.firstPreferences = row.firstPreferences
-      }
-    }
-  }
-
-  for (const match of results?.matches ?? []) {
-    const sideA = match.sideA
-    const sideB = match.sideB
-    const weightA = typeof sideA?.weight === 'number' ? sideA.weight : 0
-    const weightB = typeof sideB?.weight === 'number' ? sideB.weight : 0
-    if (sideA?.elementId && byId.has(sideA.elementId)) {
-      const candidate = byId.get(sideA.elementId)!
-      candidate.weightDifference = (candidate.weightDifference ?? 0) + weightA - weightB
-    }
-    if (sideB?.elementId && byId.has(sideB.elementId)) {
-      const candidate = byId.get(sideB.elementId)!
-      candidate.weightDifference = (candidate.weightDifference ?? 0) + weightB - weightA
-    }
-  }
-
-  return excluded.map((elementId) => byId.get(elementId)!)
 }
 
 function deriveDirectQualified(
@@ -206,7 +170,7 @@ async function computeEntrants(
   }
   if (!selected) {
     const selection = applyRepechage({
-      excluded: candidatesFromResults(excluded, results),
+      excluded: repechageCandidatesFromResults(excluded, results),
       directQualified: direct.length,
       targetSize: rule.targetSize,
       criteria: rule.criteria,

@@ -22,6 +22,7 @@ import {
 } from '../db/phases'
 import { findOrganizerRole, findTournamentById, findTournamentRole } from '../db/tournaments'
 import { apiError, json } from '../http/json'
+import { closePhaseIfDue, handlePhaseCloseRoute } from './phase-close'
 import { handlePhaseOpeningRoute } from './phase-opening'
 
 interface PhaseBody {
@@ -106,6 +107,7 @@ async function listPhasesHandler(
   env: Env,
   auth: AuthContext,
   tournamentId: string,
+  now: number,
 ): Promise<Response> {
   const tournament = await findTournamentById(env, tournamentId)
   if (!tournament) return apiError(404, 'not_found')
@@ -113,7 +115,11 @@ async function listPhasesHandler(
   const role = await findTournamentRole(env, tournamentId, auth.user.id)
   if (!role) return apiError(403, 'forbidden')
 
-  const phases = await listPhases(env, tournamentId)
+  const stored = await listPhases(env, tournamentId)
+  const phases: PhaseRecord[] = []
+  for (const phase of stored) {
+    phases.push(await closePhaseIfDue(env, phase, now))
+  }
   return json({
     settings: parseTournamentSettings(tournament.settings),
     phases: phases.map(serialisePhase),
@@ -277,6 +283,9 @@ export async function handlePhasesRoute(
   const { pathname } = new URL(request.url)
   const method = request.method
 
+  const closingResponse = await handlePhaseCloseRoute(request, env, auth, now)
+  if (closingResponse) return closingResponse
+
   const openingResponse = await handlePhaseOpeningRoute(request, env, auth, now)
   if (openingResponse) return openingResponse
 
@@ -293,7 +302,7 @@ export async function handlePhasesRoute(
   const planMatch = pathname.match(/^\/api\/tournaments\/([^/]+)\/phases$/)
   if (planMatch) {
     const tournamentId = decodeURIComponent(planMatch[1]!)
-    if (method === 'GET') return listPhasesHandler(env, auth, tournamentId)
+    if (method === 'GET') return listPhasesHandler(env, auth, tournamentId, now)
     if (method === 'POST') return createPhaseHandler(request, env, auth, tournamentId, now)
     return null
   }
