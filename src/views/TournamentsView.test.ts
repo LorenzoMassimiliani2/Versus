@@ -42,7 +42,7 @@ function emptyView() {
   return { template: '<div />' }
 }
 
-async function mountView(options: { isAdmin?: boolean } = {}): Promise<{ wrapper: ReturnType<typeof mount>; router: Router }> {
+async function mountView(options: { isAdmin?: boolean; path?: string } = {}): Promise<{ wrapper: ReturnType<typeof mount>; router: Router }> {
   const pinia = createPinia()
   setActivePinia(pinia)
 
@@ -55,7 +55,7 @@ async function mountView(options: { isAdmin?: boolean } = {}): Promise<{ wrapper
       { path: '/login', name: 'login', component: emptyView() },
     ],
   })
-  await router.push('/')
+  await router.push(options.path ?? '/')
   await router.isReady()
 
   const session = useSessionStore(pinia)
@@ -75,26 +75,17 @@ describe('TournamentsView', () => {
   it('divide i tornei tra le tab Partecipo e Organizzo', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ tournaments: TOURNAMENTS })))
 
-    const { wrapper } = await mountView()
+    const { wrapper, router } = await mountView()
 
     expect(wrapper.text()).toContain('Torneo partecipato')
     expect(wrapper.text()).not.toContain('Torneo organizzato')
 
-    await wrapper.get('#tab-organizing').trigger('click')
+    await router.push({ name: 'home', query: { tab: 'organizing' } })
+    await flushPromises()
 
     expect(wrapper.text()).toContain('Torneo organizzato')
     expect(wrapper.text()).not.toContain('Torneo partecipato')
-    expect(wrapper.get('#tab-organizing').attributes('aria-pressed')).toBe('true')
-  })
-
-  it('mostra la tab Utenti solo all admin', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ tournaments: [] })))
-
-    const { wrapper: plain } = await mountView()
-    expect(plain.find('#tab-users').exists()).toBe(false)
-
-    const { wrapper: admin } = await mountView({ isAdmin: true })
-    expect(admin.get('#tab-users').text()).toBe('Utenti')
+    expect(router.currentRoute.value.query.tab).toBe('organizing')
   })
 
   it('crea un torneo e apre il dettaglio', async () => {
@@ -118,6 +109,7 @@ describe('TournamentsView', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { wrapper, router } = await mountView()
+    await wrapper.get('#open-create-tournament').trigger('click')
     await wrapper.get('#tournament-name').setValue('Nuovo torneo')
     await wrapper.get('#create-tournament-form').trigger('submit')
     await flushPromises()

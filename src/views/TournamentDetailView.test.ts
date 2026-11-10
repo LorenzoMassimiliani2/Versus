@@ -81,6 +81,7 @@ describe('TournamentDetailView', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.get('#open-wizard').text()).toBe('Wizard di pubblicazione')
 
+    await wrapper.get('#open-edit-tournament').trigger('click')
     await wrapper.get('#edit-name').setValue('Torneo rinominato')
     await wrapper.get('#edit-description').setValue('Nuova descrizione')
     await wrapper.get('#tournament-edit-form').trigger('submit')

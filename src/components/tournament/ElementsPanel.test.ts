@@ -56,7 +56,7 @@ describe('CustomFieldsPanel', () => {
     })
 
     expect(wrapper.text()).toContain('Hai raggiunto il limite di 10 campi personalizzati.')
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('#open-create-field').attributes('disabled')).toBeDefined()
   })
 })
 
@@ -76,6 +76,7 @@ describe('ElementsPanel', () => {
       global: { plugins: [pinia] },
     })
 
+    await wrapper.get('#open-create-element').trigger('click')
     await wrapper.get('#element-name').setValue('Canzone')
     await wrapper.get('#element-image').setValue('https://images.example.test/e1.jpg')
     await wrapper.get('#element-field-genere').setValue('pop')
@@ -106,7 +107,7 @@ describe('ElementsPanel', () => {
     })
 
     expect(wrapper.text()).toContain('Non puoi aggiungere elementi dopo l apertura della prima fase.')
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('#open-create-element').attributes('disabled')).toBeDefined()
   })
 
   it('riordina con i bottoni accessibili e persiste l ordine', async () => {

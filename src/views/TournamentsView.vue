@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
+import AppModal from '@/components/ui/AppModal.vue'
 import { strings, tournamentRoleLabel, tournamentStatusLabel } from '@/lib/strings'
 import { useSessionStore } from '@/stores/session'
 import { useTournamentsStore } from '@/stores/tournaments'
@@ -9,9 +10,12 @@ import { useTournamentsStore } from '@/stores/tournaments'
 const session = useSessionStore()
 const tournaments = useTournamentsStore()
 const router = useRouter()
+const route = useRoute()
 
-type Tab = 'participating' | 'organizing'
-const activeTab = ref<Tab>('participating')
+const activeTab = computed<'participating' | 'organizing'>(() =>
+  route.query.tab === 'organizing' ? 'organizing' : 'participating',
+)
+const createOpen = ref(false)
 
 const name = ref('')
 const description = ref('')
@@ -45,6 +49,7 @@ async function submitCreate(): Promise<void> {
   name.value = ''
   description.value = ''
   coverUrl.value = ''
+  createOpen.value = false
   await router.push({ name: 'tournament', params: { id: created.id } })
 }
 
@@ -61,100 +66,24 @@ async function signOut(): Promise<void> {
         <h1 class="text-2xl font-semibold tracking-tight">{{ strings.tournaments.title }}</h1>
         <p class="text-sm text-muted-foreground">{{ strings.tournaments.subtitle }}</p>
       </div>
-      <button
-        class="h-10 shrink-0 rounded-md border border-border px-3 text-sm font-medium"
-        type="button"
-        @click="signOut"
-      >
-        {{ strings.tournaments.logout }}
-      </button>
+      <div class="flex shrink-0 gap-2">
+        <button
+          id="open-create-tournament"
+          class="h-10 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+          type="button"
+          @click="createOpen = true"
+        >
+          {{ strings.tournaments.createTitle }}
+        </button>
+        <button
+          class="h-10 rounded-md border border-border px-3 text-sm font-medium"
+          type="button"
+          @click="signOut"
+        >
+          {{ strings.tournaments.logout }}
+        </button>
+      </div>
     </div>
-
-    <nav class="flex flex-wrap gap-2" aria-label="Sezioni dei tornei">
-      <button
-        id="tab-participating"
-        class="h-10 rounded-md border px-3 text-sm font-medium"
-        :class="activeTab === 'participating' ? 'border-primary bg-primary text-primary-foreground' : 'border-border'"
-        type="button"
-        :aria-pressed="activeTab === 'participating'"
-        @click="activeTab = 'participating'"
-      >
-        {{ strings.tournaments.tabParticipating }}
-      </button>
-      <button
-        id="tab-organizing"
-        class="h-10 rounded-md border px-3 text-sm font-medium"
-        :class="activeTab === 'organizing' ? 'border-primary bg-primary text-primary-foreground' : 'border-border'"
-        type="button"
-        :aria-pressed="activeTab === 'organizing'"
-        @click="activeTab = 'organizing'"
-      >
-        {{ strings.tournaments.tabOrganizing }}
-      </button>
-      <RouterLink
-        v-if="session.user?.isAdmin"
-        id="tab-users"
-        class="flex h-10 items-center rounded-md border border-border px-3 text-sm font-medium"
-        :to="{ name: 'admin-users' }"
-      >
-        {{ strings.tournaments.tabUsers }}
-      </RouterLink>
-    </nav>
-
-    <form
-      id="create-tournament-form"
-      class="space-y-3 rounded-md border border-border p-4"
-      @submit.prevent="submitCreate"
-    >
-      <h2 class="text-base font-semibold">{{ strings.tournaments.createTitle }}</h2>
-
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium" for="tournament-name">{{ strings.tournaments.name }}</label>
-        <input
-          id="tournament-name"
-          v-model="name"
-          class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="text"
-          :placeholder="strings.tournaments.namePlaceholder"
-          maxlength="120"
-          required
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium" for="tournament-description">
-          {{ strings.tournaments.description }}
-        </label>
-        <textarea
-          id="tournament-description"
-          v-model="description"
-          class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          maxlength="2000"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium" for="tournament-cover">
-          {{ strings.tournaments.coverUrl }}
-          <span class="font-normal text-muted-foreground">({{ strings.tournaments.optional }})</span>
-        </label>
-        <input
-          id="tournament-cover"
-          v-model="coverUrl"
-          class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="url"
-          inputmode="url"
-        />
-      </div>
-
-      <button
-        class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        type="submit"
-        :disabled="creating"
-      >
-        {{ creating ? strings.tournaments.creating : strings.tournaments.create }}
-      </button>
-    </form>
 
     <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
       {{ tournaments.error }}
@@ -186,5 +115,60 @@ async function signOut(): Promise<void> {
         </RouterLink>
       </li>
     </ul>
+
+    <AppModal
+      :open="createOpen"
+      :title="strings.tournaments.createTitle"
+      @close="createOpen = false"
+    >
+      <form id="create-tournament-form" class="space-y-3" @submit.prevent="submitCreate">
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium" for="tournament-name">{{ strings.tournaments.name }}</label>
+          <input
+            id="tournament-name"
+            v-model="name"
+            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="text"
+            :placeholder="strings.tournaments.namePlaceholder"
+            maxlength="120"
+            required
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium" for="tournament-description">
+            {{ strings.tournaments.description }}
+          </label>
+          <textarea
+            id="tournament-description"
+            v-model="description"
+            class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            maxlength="2000"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium" for="tournament-cover">
+            {{ strings.tournaments.coverUrl }}
+            <span class="font-normal text-muted-foreground">({{ strings.tournaments.optional }})</span>
+          </label>
+          <input
+            id="tournament-cover"
+            v-model="coverUrl"
+            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="url"
+            inputmode="url"
+          />
+        </div>
+
+        <button
+          class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          type="submit"
+          :disabled="creating"
+        >
+          {{ creating ? strings.tournaments.creating : strings.tournaments.create }}
+        </button>
+      </form>
+    </AppModal>
   </section>
 </template>

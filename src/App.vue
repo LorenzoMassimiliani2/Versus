@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+
+import BottomTabs from '@/components/BottomTabs.vue'
 </script>
 
 <template>
@@ -15,8 +17,10 @@ import { RouterView } from 'vue-router'
       </div>
     </header>
 
-    <main class="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
+    <main class="mx-auto w-full max-w-2xl flex-1 px-4 py-6 pb-24">
       <RouterView />
     </main>
+
+    <BottomTabs />
   </div>
 </template>

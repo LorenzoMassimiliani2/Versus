@@ -1,5 +1,8 @@
 export const strings = {
   appName: 'Versus',
+  common: {
+    close: 'Chiudi',
+  },
   login: {
     title: 'Accedi',
     subtitle: 'Inserisci le credenziali assegnate dall\'amministratore.',

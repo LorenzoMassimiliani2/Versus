@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import AppModal from '@/components/ui/AppModal.vue'
 import AuditLogPanel from '@/components/tournament/AuditLogPanel.vue'
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
@@ -66,6 +67,7 @@ const editCoverUrl = ref('')
 const editSelfVoteAllowed = ref(true)
 const editAutoAdvance = ref(false)
 const saved = ref(false)
+const editOpen = ref(false)
 
 onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
@@ -143,14 +145,24 @@ async function submitEdit(): Promise<void> {
         >
           {{ strings.tournamentDetail.draftNotice }}
         </p>
-        <RouterLink
-          v-if="isOrganizer && tournaments.current.status === 'draft'"
-          id="open-wizard"
-          class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-          :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
-        >
-          {{ strings.tournaments.publishWizard }}
-        </RouterLink>
+        <div v-if="isOrganizer" class="flex flex-wrap gap-2">
+          <RouterLink
+            v-if="tournaments.current.status === 'draft'"
+            id="open-wizard"
+            class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+            :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
+          >
+            {{ strings.tournaments.publishWizard }}
+          </RouterLink>
+          <button
+            id="open-edit-tournament"
+            class="inline-flex h-11 items-center rounded-md border border-border px-4 text-sm font-medium"
+            type="button"
+            @click="editOpen = true"
+          >
+            {{ strings.tournamentDetail.editTitle }}
+          </button>
+        </div>
       </div>
 
       <template v-if="isOrganizer">
@@ -227,99 +239,105 @@ async function submitEdit(): Promise<void> {
         <ElementsPanel :tournament-id="tournamentId" :add-locked="elementsAddLocked" />
       </template>
 
-      <form
-        v-if="isOrganizer"
-        id="tournament-edit-form"
-        class="space-y-3 rounded-md border border-border p-4"
-        @submit.prevent="submitEdit"
-      >
-        <h2 class="text-base font-semibold">{{ strings.tournamentDetail.editTitle }}</h2>
-
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="edit-name">
-            {{ strings.tournamentDetail.name }}
-          </label>
-          <input
-            id="edit-name"
-            v-model="editName"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            type="text"
-            maxlength="120"
-            required
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="edit-description">
-            {{ strings.tournamentDetail.description }}
-          </label>
-          <textarea
-            id="edit-description"
-            v-model="editDescription"
-            class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            maxlength="2000"
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="edit-cover">
-            {{ strings.tournamentDetail.coverUrl }}
-            <span class="font-normal text-muted-foreground">({{ strings.tournaments.optional }})</span>
-          </label>
-          <input
-            id="edit-cover"
-            v-model="editCoverUrl"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            type="url"
-            inputmode="url"
-          />
-        </div>
-
-        <fieldset class="space-y-2 rounded-md border border-border p-3">
-          <legend class="px-1 text-sm font-medium">
-            {{ strings.tournamentDetail.settingsTitle }}
-          </legend>
-          <label class="flex items-start gap-2 text-sm">
-            <input
-              id="edit-self-vote"
-              v-model="editSelfVoteAllowed"
-              class="mt-0.5 size-4"
-              type="checkbox"
-            />
-            <span>{{ strings.tournamentDetail.selfVoteAllowed }}</span>
-          </label>
-          <label class="flex items-start gap-2 text-sm">
-            <input
-              id="edit-auto-advance"
-              v-model="editAutoAdvance"
-              class="mt-0.5 size-4"
-              type="checkbox"
-              :disabled="autoAdvanceLocked"
-            />
-            <span>
-              {{ strings.tournamentDetail.autoAdvance }}
-              <span v-if="autoAdvanceLocked" class="block text-xs text-muted-foreground">
-                {{ strings.tournamentDetail.autoAdvanceLocked }}
-              </span>
-            </span>
-          </label>
-        </fieldset>
-
-        <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
-          {{ tournaments.error }}
-        </p>
-        <p v-if="saved" class="text-sm text-muted-foreground" role="status">
-          {{ strings.tournamentDetail.saved }}
-        </p>
-
-        <button
-          class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          type="submit"
-          :disabled="tournaments.saving"
+    <AppModal
+      :open="editOpen"
+      :title="strings.tournamentDetail.editTitle"
+      @close="editOpen = false"
+    >
+        <form
+          v-if="isOrganizer"
+          id="tournament-edit-form"
+          class="space-y-3"
+          @submit.prevent="submitEdit"
         >
-          {{ tournaments.saving ? strings.tournamentDetail.saving : strings.tournamentDetail.save }}
-        </button>
-      </form>
+          <h2 class="text-base font-semibold">{{ strings.tournamentDetail.editTitle }}</h2>
+
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="edit-name">
+              {{ strings.tournamentDetail.name }}
+            </label>
+            <input
+              id="edit-name"
+              v-model="editName"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="text"
+              maxlength="120"
+              required
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="edit-description">
+              {{ strings.tournamentDetail.description }}
+            </label>
+            <textarea
+              id="edit-description"
+              v-model="editDescription"
+              class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              maxlength="2000"
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="edit-cover">
+              {{ strings.tournamentDetail.coverUrl }}
+              <span class="font-normal text-muted-foreground">({{ strings.tournaments.optional }})</span>
+            </label>
+            <input
+              id="edit-cover"
+              v-model="editCoverUrl"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="url"
+              inputmode="url"
+            />
+          </div>
+
+          <fieldset class="space-y-2 rounded-md border border-border p-3">
+            <legend class="px-1 text-sm font-medium">
+              {{ strings.tournamentDetail.settingsTitle }}
+            </legend>
+            <label class="flex items-start gap-2 text-sm">
+              <input
+                id="edit-self-vote"
+                v-model="editSelfVoteAllowed"
+                class="mt-0.5 size-4"
+                type="checkbox"
+              />
+              <span>{{ strings.tournamentDetail.selfVoteAllowed }}</span>
+            </label>
+            <label class="flex items-start gap-2 text-sm">
+              <input
+                id="edit-auto-advance"
+                v-model="editAutoAdvance"
+                class="mt-0.5 size-4"
+                type="checkbox"
+                :disabled="autoAdvanceLocked"
+              />
+              <span>
+                {{ strings.tournamentDetail.autoAdvance }}
+                <span v-if="autoAdvanceLocked" class="block text-xs text-muted-foreground">
+                  {{ strings.tournamentDetail.autoAdvanceLocked }}
+                </span>
+              </span>
+            </label>
+          </fieldset>
+
+          <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
+            {{ tournaments.error }}
+          </p>
+          <p v-if="saved" class="text-sm text-muted-foreground" role="status">
+            {{ strings.tournamentDetail.saved }}
+          </p>
+
+          <button
+            class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            type="submit"
+            :disabled="tournaments.saving"
+          >
+            {{ tournaments.saving ? strings.tournamentDetail.saving : strings.tournamentDetail.save }}
+          </button>
+        </form>
+    </AppModal>
     </template>
   </section>
 </template>

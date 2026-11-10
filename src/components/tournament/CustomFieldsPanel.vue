@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import AppModal from '@/components/ui/AppModal.vue'
 import { strings } from '@/lib/strings'
 import { useElementsStore, type CustomFieldType } from '@/stores/elements'
 
 const props = defineProps<{ tournamentId: string }>()
 
 const elements = useElementsStore()
+const addOpen = ref(false)
 const key = ref('')
 const label = ref('')
 const type = ref<CustomFieldType>('text')
 
 const types = Object.entries(strings.fields.types) as [CustomFieldType, string][]
+
+function cancelForm(): void {
+  addOpen.value = false
+  key.value = ''
+  label.value = ''
+  type.value = 'text'
+}
 
 async function submit(): Promise<void> {
   const ok = await elements.createField(props.tournamentId, {
@@ -20,17 +29,26 @@ async function submit(): Promise<void> {
     type: type.value,
   })
   if (!ok) return
-  key.value = ''
-  label.value = ''
-  type.value = 'text'
+  cancelForm()
 }
 </script>
 
 <template>
   <section class="space-y-3 rounded-md border border-border p-4">
-    <div class="space-y-1">
-      <h2 class="text-base font-semibold">{{ strings.fields.title }}</h2>
-      <p class="text-sm text-muted-foreground">{{ strings.fields.subtitle }}</p>
+    <div class="flex items-start justify-between gap-3">
+      <div class="space-y-1">
+        <h2 class="text-base font-semibold">{{ strings.fields.title }}</h2>
+        <p class="text-sm text-muted-foreground">{{ strings.fields.subtitle }}</p>
+      </div>
+      <button
+        id="open-create-field"
+        class="h-10 shrink-0 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"
+        type="button"
+        :disabled="!elements.canAddField"
+        @click="addOpen = true"
+      >
+        {{ strings.fields.add }}
+      </button>
     </div>
 
     <p v-if="elements.fields.length === 0" class="text-sm text-muted-foreground">
@@ -62,55 +80,61 @@ async function submit(): Promise<void> {
       {{ strings.fields.limit }}
     </p>
 
-    <form class="space-y-3" @submit.prevent="submit">
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="field-key">{{ strings.fields.key }}</label>
-          <input
-            id="field-key"
-            v-model="key"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
-            type="text"
-            pattern="[a-z][a-z0-9_]{0,31}"
-            :placeholder="strings.fields.keyPlaceholder"
-            required
-          />
+    <AppModal
+      :open="addOpen"
+      :title="strings.fields.add"
+      @close="cancelForm"
+    >
+      <form class="space-y-3" @submit.prevent="submit">
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="field-key">{{ strings.fields.key }}</label>
+            <input
+              id="field-key"
+              v-model="key"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
+              type="text"
+              pattern="[a-z][a-z0-9_]{0,31}"
+              :placeholder="strings.fields.keyPlaceholder"
+              required
+            />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="field-label">{{ strings.fields.label }}</label>
+            <input
+              id="field-label"
+              v-model="label"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
+              type="text"
+              maxlength="80"
+              :placeholder="strings.fields.labelPlaceholder"
+              required
+            />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium" for="field-type">{{ strings.fields.type }}</label>
+            <select
+              id="field-type"
+              v-model="type"
+              class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
+            >
+              <option v-for="[value, text] in types" :key="value" :value="value">{{ text }}</option>
+            </select>
+          </div>
         </div>
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="field-label">{{ strings.fields.label }}</label>
-          <input
-            id="field-label"
-            v-model="label"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
-            type="text"
-            maxlength="80"
-            :placeholder="strings.fields.labelPlaceholder"
-            required
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium" for="field-type">{{ strings.fields.type }}</label>
-          <select
-            id="field-type"
-            v-model="type"
-            class="h-11 w-full rounded-md border border-input bg-background px-3 text-base"
-          >
-            <option v-for="[value, text] in types" :key="value" :value="value">{{ text }}</option>
-          </select>
-        </div>
-      </div>
 
-      <p v-if="elements.error" class="text-sm text-destructive" role="alert">
-        {{ elements.error }}
-      </p>
+        <p v-if="elements.error" class="text-sm text-destructive" role="alert">
+          {{ elements.error }}
+        </p>
 
-      <button
-        class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        type="submit"
-        :disabled="elements.saving || !elements.canAddField"
-      >
-        {{ elements.saving ? strings.fields.adding : strings.fields.add }}
-      </button>
-    </form>
+        <button
+          class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          type="submit"
+          :disabled="elements.saving || !elements.canAddField"
+        >
+          {{ elements.saving ? strings.fields.adding : strings.fields.add }}
+        </button>
+      </form>
+    </AppModal>
   </section>
 </template>
