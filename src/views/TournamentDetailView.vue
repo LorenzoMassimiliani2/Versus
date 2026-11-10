@@ -25,7 +25,22 @@ const isOrganizer = computed(
   () => tournaments.current?.role === 'owner' || tournaments.current?.role === 'co_organizer',
 )
 const isOwner = computed(() => tournaments.current?.role === 'owner')
-const participantsEditable = computed(() => tournaments.current?.status === 'draft')
+const activePhase = computed(() =>
+  phases.phases.some(
+    (phase) => phase.status === 'open' || phase.status === 'awaiting_resolution',
+  ),
+)
+const participantsEditable = computed(() => {
+  const status = tournaments.current?.status
+  return (
+    isOrganizer.value &&
+    (status === 'draft' || status === 'published' || status === 'running') &&
+    !activePhase.value
+  )
+})
+const elementsAddLocked = computed(() =>
+  phases.phases.some((phase) => phase.openedAt !== null),
+)
 const phasesEditable = computed(() => {
   const status = tournaments.current?.status
   return isOrganizer.value && (status === 'draft' || status === 'published' || status === 'running')
@@ -209,7 +224,7 @@ async function submitEdit(): Promise<void> {
         />
         <PlanPreviewPanel :tournament-id="tournamentId" />
         <CustomFieldsPanel :tournament-id="tournamentId" />
-        <ElementsPanel :tournament-id="tournamentId" />
+        <ElementsPanel :tournament-id="tournamentId" :add-locked="elementsAddLocked" />
       </template>
 
       <form

@@ -12,8 +12,10 @@ import {
   findElementById,
   insertCustomField,
   insertElement,
+  isElementUsed,
   listCustomFields,
   listElements,
+  listUsedElementIds,
   parseCustomValues,
   reorderElements,
   updateCustomFieldLabel,
@@ -22,6 +24,7 @@ import {
   type CustomFieldRecord,
   type ElementRecord,
 } from '../db/elements'
+import { countOpenedPhases } from '../db/phases'
 import { findOrganizerRole, findTournamentById } from '../db/tournaments'
 import { apiError, json } from '../http/json'
 
@@ -51,6 +54,7 @@ interface ElementBody {
   videoUrl: string | null
   customValues: Record<string, string | number>
   position: number
+  locked: boolean
   createdAt: string
   updatedAt: string
 }
@@ -73,7 +77,7 @@ function serialiseField(field: CustomFieldRecord): FieldBody {
   }
 }
 
-function serialiseElement(element: ElementRecord): ElementBody {
+function serialiseElement(element: ElementRecord, locked = false): ElementBody {
   return {
     id: element.id,
     userId: element.user_id,
@@ -83,6 +87,7 @@ function serialiseElement(element: ElementRecord): ElementBody {
     videoUrl: element.video_url,
     customValues: parseCustomValues(element.custom_values),
     position: element.position,
+    locked,
     createdAt: element.created_at,
     updatedAt: element.updated_at,
   }
@@ -275,8 +280,12 @@ async function listElementsHandler(
   const denied = await authorizeTournament(env, auth, tournamentId)
   if (denied) return denied
 
-  const elements = initialSeeding(await listElements(env, tournamentId))
-  return json({ elements: elements.map(serialiseElement) })
+  const [stored, used] = await Promise.all([
+    listElements(env, tournamentId),
+    listUsedElementIds(env, tournamentId),
+  ])
+  const elements = initialSeeding(stored)
+  return json({ elements: elements.map((element) => serialiseElement(element, used.has(element.id))) })
 }
 
 async function createElementHandler(
@@ -288,6 +297,11 @@ async function createElementHandler(
 ): Promise<Response> {
   const denied = await authorizeTournament(env, auth, tournamentId)
   if (denied) return denied
+
+  // A2: dopo l'apertura della prima fase l'insieme degli elementi e' congelato.
+  if ((await countOpenedPhases(env, tournamentId)) > 0) {
+    return apiError(409, 'element_locked')
+  }
 
   const body = await readJson(request)
   if (typeof body !== 'object' || body === null) return apiError(400, 'invalid_request')
@@ -407,16 +421,17 @@ async function patchElementHandler(
 
   await updateElement(env, element.id, changes, new Date(now).toISOString())
   const updated = await findElementById(env, element.id)
+  const locked = await isElementUsed(env, element)
   await writeAudit(env, now, {
     tournamentId: element.tournament_id,
     actorId: auth.user.id,
     action: 'element.update',
     targetType: 'element',
     targetId: element.id,
-    before: serialiseElement(element),
-    after: serialiseElement(updated ?? element),
+    before: serialiseElement(element, locked),
+    after: serialiseElement(updated ?? element, locked),
   })
-  return json({ element: serialiseElement(updated ?? element) })
+  return json({ element: serialiseElement(updated ?? element, locked) })
 }
 
 async function deleteElementHandler(
@@ -431,8 +446,10 @@ async function deleteElementHandler(
   const denied = await authorizeTournament(env, auth, element.tournament_id)
   if (denied) return denied
 
-  // Il divieto di cancellare elementi usati in una fase arriva con TICKET-0033,
-  // quando esistono le tabelle delle fasi.
+  // A2: un elemento usato in una fase avviata non si elimina; i referenti nelle
+  // tabelle della fase restano validi e i metadati sono comunque modificabili.
+  if (await isElementUsed(env, element)) return apiError(409, 'element_in_use')
+
   await deleteElement(env, element, new Date(now).toISOString())
   await writeAudit(env, now, {
     tournamentId: element.tournament_id,
@@ -486,8 +503,14 @@ async function reorderElementsHandler(
     after: { ids: nextIds },
   })
 
-  const reordered = initialSeeding(await listElements(env, tournamentId))
-  return json({ elements: reordered.map(serialiseElement) })
+  const [stored, used] = await Promise.all([
+    listElements(env, tournamentId),
+    listUsedElementIds(env, tournamentId),
+  ])
+  const reordered = initialSeeding(stored)
+  return json({
+    elements: reordered.map((element) => serialiseElement(element, used.has(element.id))),
+  })
 }
 
 /**

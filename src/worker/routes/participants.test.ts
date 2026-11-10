@@ -220,7 +220,7 @@ describe('POST /api/tournaments/:id/participants', () => {
     }
   })
 
-  it('rifiuta modifiche quando il torneo non è più in bozza', async () => {
+  it('consente di aggiungere partecipanti tra una fase e l altra, ma non a torneo concluso', async () => {
     const { db, env } = createTestEnvironment()
     await seedUser(db, 'u1', 'alice')
     await seedUser(db, 'u2', 'bruno')
@@ -228,7 +228,11 @@ describe('POST /api/tournaments/:id/participants', () => {
     const tournamentId = await createTournament(env, alice, 'Torneo pubblicato')
     await publish(db, tournamentId)
 
-    const response = await addParticipant(env, alice, tournamentId, 'u2')
+    expect((await addParticipant(env, alice, tournamentId, 'u2')).status).toBe(201)
+
+    db.prepare("UPDATE tournaments SET status = 'concluded' WHERE id = ?").run(tournamentId)
+    await seedUser(db, 'u3', 'carla')
+    const response = await addParticipant(env, alice, tournamentId, 'u3')
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: 'tournament_not_editable' })

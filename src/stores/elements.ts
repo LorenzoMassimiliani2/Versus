@@ -21,6 +21,7 @@ export interface ElementItem {
   videoUrl: string | null
   customValues: Record<string, string | number>
   position: number
+  locked?: boolean
   createdAt: string
   updatedAt: string
 }

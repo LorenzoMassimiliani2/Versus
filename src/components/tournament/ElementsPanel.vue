@@ -5,7 +5,7 @@ import ElementCard from './ElementCard.vue'
 import { strings } from '@/lib/strings'
 import { useElementsStore, type ElementInput, type ElementItem } from '@/stores/elements'
 
-const props = defineProps<{ tournamentId: string }>()
+const props = defineProps<{ tournamentId: string; addLocked?: boolean }>()
 
 const elements = useElementsStore()
 
@@ -70,6 +70,7 @@ function readCustomValues(): Record<string, string | number> | null {
 }
 
 async function submit(): Promise<void> {
+  if (!editingId.value && props.addLocked) return
   formError.value = null
   const values = readCustomValues()
   if (values === null) {
@@ -98,6 +99,9 @@ async function submit(): Promise<void> {
     <div class="space-y-1">
       <h2 class="text-base font-semibold">{{ strings.elements.title }}</h2>
       <p class="text-sm text-muted-foreground">{{ strings.elements.subtitle }}</p>
+      <p v-if="addLocked" class="text-sm text-muted-foreground" role="status">
+        {{ strings.elements.addLocked }}
+      </p>
     </div>
 
     <p v-if="sorted.length === 0" class="text-sm text-muted-foreground">
@@ -202,7 +206,7 @@ async function submit(): Promise<void> {
         <button
           class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
           type="submit"
-          :disabled="elements.saving"
+          :disabled="elements.saving || (addLocked && !editingId)"
         >
           {{ elements.saving ? strings.tournamentDetail.saving : editingId ? strings.elements.update : strings.elements.create }}
         </button>

@@ -138,7 +138,7 @@ export const strings = {
     select: 'Seleziona un utente',
     noCandidates: 'Tutti gli utenti attivi partecipano già.',
     limit: 'Limite di 20 partecipanti attivi raggiunto.',
-    locked: 'I partecipanti si possono aggiungere o rimuovere solo mentre il torneo è in bozza.',
+    locked: 'I partecipanti si possono aggiungere o rimuovere solo tra una fase e l altra.',
     status: {
       active: 'Attivo',
       removed: 'Rimosso',
@@ -185,6 +185,9 @@ export const strings = {
       'Avanzamento automatico attivo: i ripescati sono calcolati automaticamente.',
     playVideo: 'Riproduci video',
     videoTitle: 'Video dell\'elemento',
+    addLocked: 'Non puoi aggiungere elementi dopo l apertura della prima fase.',
+    deleteLocked: 'Ha partecipato a una fase: non può essere eliminato.',
+    deleteLockedLabel: 'Eliminazione bloccata',
   },
   phases: {
     title: 'Piano di fasi',
@@ -439,6 +442,10 @@ export const strings = {
     field_limit_reached: 'Hai raggiunto il limite di 10 campi personalizzati.',
     duplicate_field_key: 'Esiste già un campo con questa chiave.',
     element_not_found: 'Elemento o campo non trovato.',
+    element_in_use: 'L elemento ha partecipato a una fase avviata e non può essere eliminato.',
+    element_locked: 'Non puoi aggiungere elementi dopo l apertura della prima fase.',
+    phase_in_progress:
+      'C è una fase aperta: i partecipanti si modificano solo tra una fase e l altra.',
     account_disabled: 'Account disattivato. Contatta un amministratore.',
     rate_limited: 'Troppi tentativi di accesso. Riprova tra 15 minuti.',
     invalid_request: 'Inserisci username e password validi.',
@@ -600,6 +607,8 @@ const ELEMENT_ERROR_MESSAGES: Record<string, string> = {
   duplicate_field_key: strings.errors.duplicate_field_key,
   forbidden: strings.errors.forbidden,
   not_found: strings.errors.element_not_found,
+  element_in_use: strings.errors.element_in_use,
+  element_locked: strings.errors.element_locked,
 }
 
 const PARTICIPANTS_ERROR_MESSAGES: Record<string, string> = {
@@ -608,6 +617,7 @@ const PARTICIPANTS_ERROR_MESSAGES: Record<string, string> = {
   not_found: strings.errors.tournament_not_found,
   participant_limit_reached: strings.errors.participant_limit_reached,
   tournament_not_editable: strings.errors.tournament_not_editable,
+  phase_in_progress: strings.errors.phase_in_progress,
   already_organizer: strings.errors.already_organizer,
   cannot_remove_owner: strings.errors.cannot_remove_owner,
 }

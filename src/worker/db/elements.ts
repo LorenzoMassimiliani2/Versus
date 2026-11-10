@@ -110,6 +110,45 @@ export function listElements(env: Env, tournamentId: string): Promise<ElementRec
     .then((result) => result.results)
 }
 
+/**
+ * Elementi che hanno preso parte a una fase gia' aperta (aperta, in attesa di
+ * risoluzione, chiusa o annullata dopo l'apertura). Sono gli elementi che non
+ * si possono eliminare: i loro riferimenti restano nelle tabelle della fase.
+ */
+export function listUsedElementIds(env: Env, tournamentId: string): Promise<Set<string>> {
+  return env.DB.prepare(
+    `SELECT DISTINCT element_id FROM (
+       SELECT pe.element_id AS element_id
+       FROM phase_entrants pe
+       JOIN phases p ON p.id = pe.phase_id
+       WHERE p.tournament_id = ? AND p.opened_at IS NOT NULL
+       UNION
+       SELECT gm.element_id
+       FROM group_members gm
+       JOIN groups g ON g.id = gm.group_id
+       JOIN phases p ON p.id = g.phase_id
+       WHERE p.tournament_id = ? AND p.opened_at IS NOT NULL
+       UNION
+       SELECT m.element_a_id
+       FROM matches m
+       JOIN phases p ON p.id = m.phase_id
+       WHERE p.tournament_id = ? AND m.element_a_id IS NOT NULL AND p.opened_at IS NOT NULL
+       UNION
+       SELECT m.element_b_id
+       FROM matches m
+       JOIN phases p ON p.id = m.phase_id
+       WHERE p.tournament_id = ? AND m.element_b_id IS NOT NULL AND p.opened_at IS NOT NULL
+     )`,
+  )
+    .bind(tournamentId, tournamentId, tournamentId, tournamentId)
+    .all<{ element_id: string }>()
+    .then((result) => new Set(result.results.map((row) => row.element_id)))
+}
+
+export async function isElementUsed(env: Env, element: ElementRecord): Promise<boolean> {
+  return (await listUsedElementIds(env, element.tournament_id)).has(element.id)
+}
+
 export function findElementById(env: Env, id: string): Promise<ElementRecord | null> {
   return env.DB.prepare(`SELECT ${ELEMENT_COLUMNS} FROM elements WHERE id = ?`)
     .bind(id)
