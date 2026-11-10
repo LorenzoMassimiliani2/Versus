@@ -1,11 +1,13 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
 import { DatabaseSync } from 'node:sqlite'
 
-const migrationSql = readFileSync(
-  new URL('../../migrations/0001_initial_schema.sql', import.meta.url),
-  'utf8',
-)
+const migrationsDir = new URL('../../migrations/', import.meta.url)
+const migrationSql = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort()
+  .map((file) => readFileSync(new URL(file, migrationsDir), 'utf8'))
+  .join('\n')
 
 type SqlValue = string | number | bigint | null | Uint8Array
 

@@ -2,8 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { useSessionStore } from '@/stores/session'
 import UsersView from '@/views/admin/UsersView.vue'
-import HomeView from '@/views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
+import TournamentDetailView from '@/views/TournamentDetailView.vue'
+import TournamentsView from '@/views/TournamentsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -16,7 +17,13 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView,
+      component: TournamentsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/tornei/:id',
+      name: 'tournament',
+      component: TournamentDetailView,
       meta: { requiresAuth: true },
     },
     {

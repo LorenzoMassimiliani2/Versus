@@ -1,17 +1,33 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 
-const migrationSql = readFileSync(
-  new URL('../../../migrations/0001_initial_schema.sql', import.meta.url),
-  'utf8',
-)
+const migrationsDir = new URL('../../../migrations/', import.meta.url)
+const migrationSql = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort()
+  .map((file) => readFileSync(new URL(file, migrationsDir), 'utf8'))
+  .join('\n')
 
 function migratedDatabase(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
+  db.exec('PRAGMA foreign_keys = ON')
   db.exec(migrationSql)
   return db
+}
+
+function seedUser(db: DatabaseSync, id: string, username: string): void {
+  db.prepare(
+    "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, 'hash', '2026-11-10T10:00:00Z')",
+  ).run(id, username)
+}
+
+function seedTournament(db: DatabaseSync, id: string, slug: string): void {
+  db.prepare(
+    `INSERT INTO tournaments (id, slug, name, status, created_at, updated_at)
+     VALUES (?, ?, ?, 'draft', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+  ).run(id, slug, slug)
 }
 
 function tableNames(db: DatabaseSync): string[] {
@@ -126,6 +142,121 @@ describe('migrazione 0001', () => {
       .all() as { name: string }[]
     expect(rows.map((row) => row.name)).toEqual(
       expect.arrayContaining(['idx_audit_tournament', 'idx_sessions_token', 'idx_sessions_user']),
+    )
+    db.close()
+  })
+})
+
+describe('migrazione 0002', () => {
+  it('crea tournaments e tournament_organizers con i default', () => {
+    const db = migratedDatabase()
+
+    seedTournament(db, 't1', 'torneo-di-prova')
+    const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get('t1') as Record<
+      string,
+      unknown
+    >
+
+    expect(tournament).toMatchObject({
+      name: 'torneo-di-prova',
+      description: '',
+      cover_url: null,
+      status: 'draft',
+      settings: '{}',
+      published_at: null,
+      started_at: null,
+      concluded_at: null,
+      winner_element_id: null,
+    })
+    db.close()
+  })
+
+  it('rifiuta slug duplicati e stati fuori dall elenco', () => {
+    const db = migratedDatabase()
+    seedTournament(db, 't1', 'torneo-di-prova')
+
+    expect(() => seedTournament(db, 't2', 'torneo-di-prova')).toThrow()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO tournaments (id, slug, name, status, created_at, updated_at)
+           VALUES ('t2', 'altro', 'Altro', 'sconosciuto', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+    db.close()
+  })
+
+  it('vincola gli organizzatori al torneo e all utente e ne impone un solo owner', () => {
+    const db = migratedDatabase()
+    seedUser(db, 'u1', 'alice')
+    seedUser(db, 'u2', 'bruno')
+    seedTournament(db, 't1', 'torneo-di-prova')
+
+    db.prepare(
+      `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+       VALUES ('t1', 'u1', 'owner', 'u1', '2026-11-10T10:00:00Z')`,
+    ).run()
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+           VALUES ('t1', 'u2', 'owner', 'u2', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare(
+      `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+       VALUES ('t1', 'u2', 'co_organizer', 'u1', '2026-11-10T10:00:00Z')`,
+    ).run()
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+           VALUES ('t1', 'u3', 'co_organizer', 'u1', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+           VALUES ('t9', 'u1', 'owner', 'u1', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+    db.close()
+  })
+
+  it('elimina gli organizzatori a cascata con il torneo', () => {
+    const db = migratedDatabase()
+    seedUser(db, 'u1', 'alice')
+    seedTournament(db, 't1', 'torneo-di-prova')
+    db.prepare(
+      `INSERT INTO tournament_organizers (tournament_id, user_id, role, added_by, added_at)
+       VALUES ('t1', 'u1', 'owner', 'u1', '2026-11-10T10:00:00Z')`,
+    ).run()
+
+    db.prepare("DELETE FROM tournaments WHERE id = 't1'").run()
+
+    expect(db.prepare('SELECT COUNT(*) AS count FROM tournament_organizers').get()).toEqual({
+      count: 0,
+    })
+    db.close()
+  })
+
+  it('crea l indice degli organizzatori per utente', () => {
+    const db = migratedDatabase()
+
+    const rows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name")
+      .all() as { name: string }[]
+    expect(rows.map((row) => row.name)).toEqual(
+      expect.arrayContaining(['idx_organizers_user', 'one_owner_per_tournament']),
     )
     db.close()
   })
