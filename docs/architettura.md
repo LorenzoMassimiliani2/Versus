@@ -90,7 +90,7 @@ I limiti sono controlli applicativi su creazione utente, pubblicazione, aggiunta
 ## Autenticazione e sessioni
 
 - Username e password creati dall'admin. Nessuna registrazione pubblica, nessun reset self-service.
-- Password: PBKDF2-HMAC-SHA256 via WebCrypto, 600.000 iterazioni, salt casuale 16 byte, formato `pbkdf2$600000$<salt_b64>$<hash_b64>`.
+- Password: PBKDF2-HMAC-SHA256 via WebCrypto, 100.000 iterazioni (limite massimo supportato dai Worker), salt casuale 16 byte, formato `pbkdf2$100000$<salt_b64>$<hash_b64>`.
 - Sessione: token casuale 32 byte, salvato come SHA-256 in `sessions`, inviato in cookie `versus_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 30 giorni).
 - CSRF: `SameSite=Lax` più controllo dell'header `Origin` su ogni mutazione.
 - Ruoli: `admin` d'istanza e ruoli per torneo (`owner`, `co_organizer`, `participant`). Vedi la matrice in `docs/spec/0001-versus-v1.md`.

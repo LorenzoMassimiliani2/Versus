@@ -1,10 +1,11 @@
 import { base64ToBytes, bytesToBase64 } from './encoding.ts'
 
 const ALGORITHM = 'pbkdf2'
-const ITERATIONS = 600_000
+// Cloudflare Workers WebCrypto rifiuta PBKDF2 con più di 100.000 iterazioni.
+const ITERATIONS = 100_000
 const SALT_BYTES = 16
 const HASH_BYTES = 32
-const MAX_ITERATIONS = 1_000_000
+const MAX_ITERATIONS = 100_000
 
 async function derive(
   password: string,
@@ -61,4 +62,4 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 /** Hash usato per uniformare il tempo di risposta quando lo username non esiste. */
 export const DUMMY_PASSWORD_HASH =
-  'pbkdf2$600000$dmVyc3VzLWR1bW15LXNhbHQ=$d5Zslc2KIKNmEu6TuZ+OpGMFK+Oiks9C2ur3uQyd5jk='
+  'pbkdf2$100000$dmVyc3VzLWR1bW15LXNsdA==$S9i1a00wtz9vQJ5KwJDv1HNQRJ2+nR1mJoThDMhUjwA='

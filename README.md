@@ -33,6 +33,6 @@ npm run db:migrate:local
 npm run admin:create -- --username alice --password una-password-lunga
 ```
 
-Senza `--username`/`--password` il comando li chiede in modo interattivo; `--remote` agisce sul D1 remoto.
+Senza `--username`/`--password` il comando li chiede in modo interattivo; `--remote` agisce sul D1 remoto. Con `--reset` reimposta la password di un admin esistente e revoca le sue sessioni.
 
 Le migrazioni vivono in `migrations/` e verranno aggiunte insieme allo schema.

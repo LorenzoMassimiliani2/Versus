@@ -15,6 +15,7 @@ interface Options {
   username: string | null
   password: string | null
   remote: boolean
+  reset: boolean
   help: boolean
 }
 
@@ -23,6 +24,7 @@ function parseArgs(args: string[]): Options {
     username: process.env.ADMIN_USERNAME ?? null,
     password: process.env.ADMIN_PASSWORD ?? null,
     remote: false,
+    reset: false,
     help: false,
   }
 
@@ -31,6 +33,7 @@ function parseArgs(args: string[]): Options {
     if (argument === '--username') options.username = args[++index] ?? null
     else if (argument === '--password') options.password = args[++index] ?? null
     else if (argument === '--remote') options.remote = true
+    else if (argument === '--reset') options.reset = true
     else if (argument === '--help' || argument === '-h') options.help = true
     else throw new Error(`Argomento sconosciuto: ${argument}`)
   }
@@ -40,11 +43,12 @@ function parseArgs(args: string[]): Options {
 
 function usage(): string {
   return [
-    'Uso: npm run admin:create -- [--username <username>] [--password <password>] [--remote]',
+    'Uso: npm run admin:create -- [--username <username>] [--password <password>] [--remote] [--reset]',
     '',
     'Senza --username o --password il comando li chiede in modo interattivo.',
     'In alternativa si possono usare ADMIN_USERNAME e ADMIN_PASSWORD.',
     'Di default il comando lavora sul D1 locale (--local).',
+    'Con --reset aggiorna password, ruolo admin e stato del primo utente esistente.',
   ].join('\n')
 }
 
@@ -147,8 +151,36 @@ async function main(): Promise<void> {
     return
   }
   if (existing.rows.length > 0) {
-    console.error(`Lo username "${username}" esiste già.`)
-    process.exitCode = 1
+    if (!options.reset) {
+      console.error(`Lo username "${username}" esiste già. Usa --reset per reimpostarne la password.`)
+      process.exitCode = 1
+      return
+    }
+
+    const passwordHash = await hashPassword(password)
+    const updatedAt = new Date().toISOString()
+    const update = executeSql(
+      options.remote,
+      `UPDATE users
+       SET password_hash = ${sqlLiteral(passwordHash)}, is_admin = 1, is_active = 1
+       WHERE username = ${sqlLiteral(username)}`,
+    )
+    if (!update.ok) {
+      console.error(`Aggiornamento dell'admin fallito: ${update.error}`)
+      process.exitCode = 1
+      return
+    }
+
+    executeSql(
+      options.remote,
+      `UPDATE sessions
+       SET revoked_at = ${sqlLiteral(updatedAt)}
+       WHERE revoked_at IS NULL
+         AND user_id = (SELECT id FROM users WHERE username = ${sqlLiteral(username)})`,
+    )
+
+    console.log(`Admin aggiornato: ${username}`)
+    console.log(`Database: ${options.remote ? 'remoto' : 'locale'}`)
     return
   }
 
