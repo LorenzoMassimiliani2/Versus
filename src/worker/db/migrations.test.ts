@@ -329,3 +329,85 @@ describe('migrazione 0003', () => {
     db.close()
   })
 })
+
+
+describe('migrazione 0005', () => {
+  function seedPhase(
+    db: DatabaseSync,
+    overrides: Partial<Record<'id' | 'position' | 'formula' | 'voteType' | 'status', string | number>> = {},
+  ): void {
+    db.prepare(
+      `INSERT INTO phases (id, tournament_id, position, name, formula, vote_type, config, advance,
+         status, created_at, updated_at)
+       VALUES (?, 't1', ?, 'Fase', ?, ?, '{}', '{}', ?, '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+    ).run(
+      (overrides.id as string) ?? 'p1',
+      (overrides.position as number) ?? 1,
+      (overrides.formula as string) ?? 'group',
+      (overrides.voteType as string) ?? 'ranking',
+      (overrides.status as string) ?? 'pending',
+    )
+  }
+
+  it('crea phases con posizione unica per torneo e stato predefinito', () => {
+    const db = migratedDatabase()
+    seedTournament(db, 't1', 'torneo-di-prova')
+
+    seedPhase(db)
+    const row = db.prepare('SELECT * FROM phases WHERE id = ?').get('p1') as Record<string, unknown>
+    expect(row).toMatchObject({
+      tournament_id: 't1',
+      position: 1,
+      name: 'Fase',
+      formula: 'group',
+      vote_type: 'ranking',
+      config: '{}',
+      advance: '{}',
+      status: 'pending',
+      opened_at: null,
+      closed_at: null,
+    })
+
+    expect(() => seedPhase(db, { id: 'p2', position: 1 })).toThrow()
+    db.close()
+  })
+
+  it('rifiuta formule, schede e stati fuori dall elenco', () => {
+    const db = migratedDatabase()
+    seedTournament(db, 't1', 'torneo-di-prova')
+
+    expect(() => seedPhase(db, { formula: 'sconosciuta' })).toThrow()
+    expect(() => seedPhase(db, { voteType: 'sconosciuta' })).toThrow()
+    expect(() => seedPhase(db, { status: 'sconosciuto' })).toThrow()
+    db.close()
+  })
+
+  it('collega le fasi al torneo e le elimina a cascata', () => {
+    const db = migratedDatabase()
+    seedTournament(db, 't1', 'torneo-di-prova')
+    seedPhase(db)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO phases (id, tournament_id, position, name, formula, vote_type, config, advance, created_at, updated_at)
+           VALUES ('p9', 'ignoto', 1, 'Fase', 'group', 'ranking', '{}', '{}', '2026-11-10T10:00:00Z', '2026-11-10T10:00:00Z')`,
+        )
+        .run(),
+    ).toThrow()
+
+    db.prepare("DELETE FROM tournaments WHERE id = 't1'").run()
+    expect(db.prepare('SELECT COUNT(*) AS count FROM phases').get()).toEqual({ count: 0 })
+    db.close()
+  })
+
+  it('crea l indice delle fasi per torneo e posizione', () => {
+    const db = migratedDatabase()
+
+    const rows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name")
+      .all() as { name: string }[]
+    expect(rows.map((row) => row.name)).toContain('idx_phases_tournament')
+    db.close()
+  })
+})

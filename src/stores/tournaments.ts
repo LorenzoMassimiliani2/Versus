@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 
+import type { TournamentSettings } from '@/domain/tournament-settings'
 import { strings, tournamentErrorMessage } from '@/lib/strings'
 
 export type TournamentStatus = 'draft' | 'published' | 'running' | 'concluded' | 'archived'
@@ -25,7 +26,7 @@ export interface TournamentOrganizer {
 }
 
 export interface TournamentDetail extends TournamentSummary {
-  settings: { autoAdvance: boolean }
+  settings: TournamentSettings
   publishedAt: string | null
   startedAt: string | null
   concludedAt: string | null
@@ -36,6 +37,7 @@ export interface TournamentInput {
   name: string
   description?: string
   coverUrl?: string | null
+  settings?: Partial<TournamentSettings>
 }
 
 interface TournamentsResponse {

@@ -85,6 +85,9 @@ export const strings = {
     save: 'Salva modifiche',
     saving: 'Salvataggio…',
     saved: 'Modifiche salvate.',
+    settingsTitle: 'Impostazioni del torneo',
+    selfVoteAllowed: 'Consenti il voto sul proprio elemento',
+    autoAdvance: 'Avanzamento automatico alla chiusura della fase',
   },
   participants: {
     title: 'Partecipanti',
@@ -139,6 +142,68 @@ export const strings = {
     playVideo: 'Riproduci video',
     videoTitle: 'Video dell\'elemento',
   },
+  phases: {
+    title: 'Piano di fasi',
+    subtitle: 'La sequenza delle fasi del torneo. Le fasi non ancora avviate si modificano e si riordinano.',
+    empty: 'Nessuna fase ancora. Aggiungi la prima.',
+    locked: 'Le fasi si modificano e si riordinano solo prima dell avvio, mentre il torneo è in bozza.',
+    addTitle: 'Nuova fase',
+    editTitle: 'Modifica fase',
+    name: 'Nome',
+    namePlaceholder: 'es. Gironi',
+    formula: 'Formula',
+    voteType: 'Scheda',
+    advance: 'Avanzamento',
+    advanceCount: 'Quanti passano',
+    deadline: 'Scadenza',
+    secrecy: 'Segretezza',
+    votingMode: 'Modalità di voto',
+    creditsPerVoter: 'Crediti per votante',
+    maxPerMatch: 'Massimo per sfida',
+    optional: 'facoltativo',
+    create: 'Aggiungi fase',
+    update: 'Salva fase',
+    cancel: 'Annulla modifica',
+    edit: 'Modifica',
+    delete: 'Elimina',
+    moveUp: 'Sposta su',
+    moveDown: 'Sposta giù',
+    previewTitle: 'Anteprima struttura',
+    previewEmpty: 'L anteprima appare quando aggiungi almeno una fase.',
+    formulaLabels: {
+      group: 'Gironi',
+      elimination: 'Eliminazione diretta',
+      ranking: 'Classifica',
+    },
+    voteTypeLabels: {
+      duel: 'Duello',
+      ranking: 'Classifica',
+      pick: 'Pick',
+    },
+    advanceLabels: {
+      all: 'Tutti gli elementi',
+      winners: 'Tutti i vincitori',
+      top_global: 'I migliori N globali',
+      top_per_group: 'I migliori N per girone',
+      winner: 'Il vincitore',
+    },
+    statusLabels: {
+      pending: 'In attesa',
+      open: 'Aperta',
+      awaiting_resolution: 'Da risolvere',
+      closed: 'Chiusa',
+      cancelled: 'Annullata',
+    },
+    secrecyLabels: {
+      live: 'Dal vivo',
+      blind: 'Cieca fino alla chiusura',
+      secret: 'Segreta',
+    },
+    votingModeLabels: {
+      simultaneous: 'Simultanea',
+      sequential: 'Sequenziale',
+    },
+  },
   fields: {
     title: 'Campi personalizzati',
     subtitle: 'Fino a 10 campi per torneo. La chiave identifica il valore, l\'etichetta è ciò che vedono gli utenti.',
@@ -176,7 +241,10 @@ export const strings = {
     not_found: 'Utente non trovato.',
     tournament_not_found: 'Torneo non trovato.',
     participant_limit_reached: 'Limite di 20 partecipanti attivi raggiunto.',
-    tournament_not_editable: 'I partecipanti si modificano solo mentre il torneo è in bozza.',
+    tournament_not_editable: 'Il torneo non è più in bozza: questa modifica non è più possibile.',
+    phase_not_editable: 'La fase è già avviata e non può essere modificata.',
+    invalid_phase: 'Formula, scheda o avanzamento non sono compatibili.',
+    phase_not_found: 'Fase o torneo non trovato.',
     already_organizer: 'L utente è già organizzatore del torneo.',
     cannot_remove_owner: 'L owner non può essere revocato.',
     network: 'Impossibile contattare il server. Riprova.',
@@ -256,4 +324,17 @@ export function participantsErrorMessage(code: string | undefined): string {
 
 export function elementsErrorMessage(code: string | undefined): string {
   return (code && ELEMENT_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const PHASES_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  invalid_phase: strings.errors.invalid_phase,
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.phase_not_found,
+  phase_not_editable: strings.errors.phase_not_editable,
+  tournament_not_editable: strings.errors.tournament_not_editable,
+}
+
+export function phasesErrorMessage(code: string | undefined): string {
+  return (code && PHASES_ERROR_MESSAGES[code]) || strings.errors.unknown
 }
