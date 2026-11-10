@@ -1,7 +1,7 @@
 ---
 id: TICKET-0008
 title: Validazione del piano e anteprima
-status: needs-triage
+status: ready-for-agent
 category: enhancement
 blocked_by: [TICKET-0005, TICKET-0006, TICKET-0007]
 blocks: [TICKET-0009]
