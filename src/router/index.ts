@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import UsersView from '@/views/admin/UsersView.vue'
 import LoginView from '@/views/LoginView.vue'
+import PhaseResultsView from '@/views/PhaseResultsView.vue'
 import PhaseVoteView from '@/views/PhaseVoteView.vue'
 import TournamentDetailView from '@/views/TournamentDetailView.vue'
 import TournamentWizardView from '@/views/TournamentWizardView.vue'
@@ -32,6 +33,12 @@ const router = createRouter({
       path: '/tornei/:id/fase/:phaseId/voto',
       name: 'phase-vote',
       component: PhaseVoteView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/tornei/:id/fase/:phaseId/risultati',
+      name: 'phase-results',
+      component: PhaseResultsView,
       meta: { requiresAuth: true },
     },
     {

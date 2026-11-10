@@ -297,6 +297,45 @@ export const strings = {
     saved: 'Voto salvato.',
     offline: 'Sei offline: il voto richiede una connessione.',
   },
+  results: {
+    title: 'Risultati',
+    view: 'Vedi risultati',
+    subtitle: 'Esito ufficiale della fase, salvato alla chiusura.',
+    back: 'Torna al torneo',
+    loading: 'Caricamento dei risultati…',
+    closedAt: (date: string) => `Chiusa il ${date}`,
+    groupsTitle: 'Classifiche dei gironi',
+    groupName: (position: number | null, name: string | null) =>
+      name ?? (position ? `Girone ${position}` : 'Girone'),
+    noGroups: 'Nessun girone in questa fase.',
+    rankingTitle: 'Classifica',
+    noRanking: 'Nessuna classifica in questa fase.',
+    matchesTitle: 'Sfide',
+    noMatches: 'Nessuna sfida in questa fase.',
+    qualifiedTitle: 'Qualificati',
+    noQualified: 'Nessun qualificato.',
+    repechageTitle: 'Ripescati',
+    repechageCriteria: (criteria: string[]) => `Criteri: ${criteria.join(', ')}`,
+    winnerTitle: 'Vincitore',
+    position: 'Posizione',
+    element: 'Elemento',
+    score: 'Punti',
+    firstPreferences: 'Prime preferenze',
+    picks: 'Pick',
+    weight: 'Peso',
+    credits: 'Crediti',
+    voters: 'Votanti',
+    winner: 'Vince',
+    bye: 'Bye',
+    resolvedByLabels: {
+      weight: 'peso',
+      credits: 'crediti',
+      voters: 'votanti',
+      manual: 'decisione manuale',
+      bye: 'bye',
+      draw: 'pareggio',
+    } as Record<string, string>,
+  },
   planPreview: {
     title: 'Anteprima del piano',
     subtitle: 'Errori bloccanti, avvisi e struttura calcolata prima della pubblicazione.',
@@ -516,6 +555,18 @@ const PHASES_ERROR_MESSAGES: Record<string, string> = {
 
 export function phasesErrorMessage(code: string | undefined): string {
   return (code && PHASES_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const RESULTS_ERROR_MESSAGES: Record<string, string> = {
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.phase_not_found,
+  phase_not_closed: 'I risultati sono disponibili solo dopo la chiusura della fase.',
+  phase_awaiting_resolution:
+    'La fase attende la risoluzione manuale di uno spareggio.',
+}
+
+export function resultsErrorMessage(code: string | undefined): string {
+  return (code && RESULTS_ERROR_MESSAGES[code]) || strings.errors.unknown
 }
 
 const VOTE_ERROR_MESSAGES: Record<string, string> = {
