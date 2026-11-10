@@ -79,7 +79,11 @@ describe('TournamentDetailView', () => {
     expect(wrapper.text()).toContain('Torneo di prova')
     expect(wrapper.text()).toContain('visibile solo agli organizzatori')
     expect(wrapper.text()).toContain('alice')
-    expect(wrapper.get('#open-wizard').text()).toBe('Wizard di pubblicazione')
+    expect(wrapper.find('#open-wizard').exists()).toBe(false)
+    expect(wrapper.get('#tab-details').text()).toBe('Dettagli')
+    expect(wrapper.get('#tab-elements').text()).toBe('Elementi')
+    expect(wrapper.get('#tab-fields').text()).toBe('Campi')
+    expect(wrapper.get('#open-edit-tournament').attributes('aria-label')).toBe('Modifica dettagli')
 
     await wrapper.get('#open-edit-tournament').trigger('click')
     await wrapper.get('#edit-name').setValue('Torneo rinominato')
@@ -96,6 +100,41 @@ describe('TournamentDetailView', () => {
     })
     expect(wrapper.text()).toContain('Torneo rinominato')
     expect(wrapper.get('[role="status"]').text()).toBe('Modifiche salvate.')
+  })
+
+  it('cambia tab tra Dettagli, Elementi e Campi', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith('/elements')) return jsonResponse({ elements: [] })
+        if (url.endsWith('/fields')) return jsonResponse({ fields: [] })
+        if (url.endsWith('/phases')) return jsonResponse({ phases: [] })
+        if (url.endsWith('/participants')) return jsonResponse({ participants: [] })
+        if (url.endsWith('/candidates')) return jsonResponse({ users: [] })
+        if (url.endsWith('/preview')) {
+          return jsonResponse({
+            valid: false,
+            errors: [],
+            warnings: [],
+            preview: { elementCount: 0, activeParticipants: 0, phases: [] },
+          })
+        }
+        if (url.endsWith('/audit')) return jsonResponse({ entries: [] })
+        return jsonResponse({ tournament: DETAIL })
+      }),
+    )
+
+    const { wrapper } = await mountView()
+
+    expect(wrapper.get('#tab-details').attributes('aria-current')).toBe('page')
+    expect(wrapper.text()).toContain('Piano di fasi')
+
+    await wrapper.get('#tab-elements').trigger('click')
+    expect(wrapper.find('#open-create-element').exists()).toBe(true)
+
+    await wrapper.get('#tab-fields').trigger('click')
+    expect(wrapper.find('#open-create-field').exists()).toBe(true)
   })
 
   it('mostra la gestione dei partecipanti all organizzatore', async () => {

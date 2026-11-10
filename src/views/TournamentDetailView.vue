@@ -12,17 +12,26 @@ import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
 import PhaseResolutionPanel from '@/components/tournament/PhaseResolutionPanel.vue'
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
-import { strings, tournamentStatusLabel } from '@/lib/strings'
+import { planIssueMessage, strings, tournamentStatusLabel } from '@/lib/strings'
 import { useElementsStore } from '@/stores/elements'
 import { usePhasesStore } from '@/stores/phases'
+import { usePlanPreviewStore } from '@/stores/plan-preview'
 import { useTournamentsStore } from '@/stores/tournaments'
 
 const route = useRoute()
 const tournaments = useTournamentsStore()
 const elements = useElementsStore()
 const phases = usePhasesStore()
+const planPreview = usePlanPreviewStore()
 
 const tournamentId = computed(() => String(route.params.id))
+type DetailTab = 'details' | 'elements' | 'fields'
+const activeTab = ref<DetailTab>('details')
+const tabs: Array<{ id: DetailTab; label: string }> = [
+  { id: 'details', label: strings.tournamentDetail.tabs.details },
+  { id: 'elements', label: strings.tournamentDetail.tabs.elements },
+  { id: 'fields', label: strings.tournamentDetail.tabs.fields },
+]
 const isOrganizer = computed(
   () => tournaments.current?.role === 'owner' || tournaments.current?.role === 'co_organizer',
 )
@@ -61,6 +70,13 @@ const resultPhases = computed(() =>
 const resolutionPhases = computed(() =>
   phases.phases.filter((phase) => phase.status === 'awaiting_resolution'),
 )
+const canPublish = computed(
+  () =>
+    isOrganizer.value &&
+    tournaments.current?.status === 'draft' &&
+    !tournaments.publishing &&
+    planPreview.result?.valid === true,
+)
 
 const editName = ref('')
 const editDescription = ref('')
@@ -73,8 +89,15 @@ const editOpen = ref(false)
 onMounted(async () => {
   await tournaments.loadOne(tournamentId.value)
   syncForm()
-  if (isOrganizer.value) await elements.load(tournamentId.value)
-  await phases.load(tournamentId.value)
+  if (isOrganizer.value) {
+    await Promise.all([
+      elements.load(tournamentId.value),
+      phases.load(tournamentId.value),
+      planPreview.load(tournamentId.value),
+    ])
+  } else {
+    await phases.load(tournamentId.value)
+  }
 })
 
 function syncForm(): void {
@@ -92,6 +115,13 @@ function resultsLinkLabel(phase: { status: string; config: { secrecy?: string } 
     return strings.results.viewOwnVote
   }
   return strings.results.view
+}
+
+async function publishTournament(): Promise<void> {
+  if (!canPublish.value) return
+  if (await tournaments.publish(tournamentId.value)) {
+    await phases.load(tournamentId.value)
+  }
 }
 
 async function submitEdit(): Promise<void> {
@@ -123,14 +153,40 @@ async function submitEdit(): Promise<void> {
 
     <template v-if="tournaments.current">
       <div class="space-y-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-2xl font-semibold tracking-tight">{{ tournaments.current.name }}</h1>
-          <span class="rounded-full border border-border px-2 py-0.5 text-xs">
+        <div class="flex items-center gap-2">
+          <BackLink :to="{ name: 'home' }" :label="strings.tournamentDetail.back" />
+          <h1 class="min-w-0 truncate text-2xl font-semibold tracking-tight">
+            {{ tournaments.current.name }}
+          </h1>
+          <span class="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs">
             {{ tournamentStatusLabel(tournaments.current.status) }}
           </span>
-          <span class="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          <span class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {{ strings.tournaments.role[tournaments.current.role] }}
           </span>
+          <button
+            v-if="isOrganizer"
+            id="open-edit-tournament"
+            class="ml-auto flex size-10 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            type="button"
+            :aria-label="strings.tournamentDetail.editLabel"
+            :title="strings.tournamentDetail.editLabel"
+            @click="editOpen = true"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="size-5"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
         </div>
         <p class="text-sm text-muted-foreground">
           {{ strings.tournamentDetail.slug }}: {{ tournaments.current.slug }}
@@ -141,99 +197,154 @@ async function submitEdit(): Promise<void> {
         >
           {{ strings.tournamentDetail.draftNotice }}
         </p>
-        <div v-if="isOrganizer" class="flex flex-wrap gap-2">
+      </div>
+
+      <nav
+        class="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1"
+        aria-label="Sezioni del torneo"
+      >
+        <button
+          v-for="tab in tabs"
+          :id="`tab-${tab.id}`"
+          :key="tab.id"
+          class="h-10 rounded-md text-sm font-medium transition-colors"
+          :class="
+            activeTab === tab.id
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          "
+          type="button"
+          :aria-current="activeTab === tab.id ? 'page' : undefined"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <div v-if="activeTab === 'details'" class="space-y-6">
+        <template v-if="isOrganizer">
+          <PhaseResolutionPanel
+            v-for="phase in resolutionPhases"
+            :key="phase.id"
+            :phase-id="phase.id"
+            :phase-name="phase.name"
+            @resolved="phases.load(tournamentId)"
+          />
+        </template>
+
+        <div v-if="resultPhases.length > 0" class="space-y-2">
+          <h2 class="text-base font-semibold">{{ strings.results.title }}</h2>
           <RouterLink
-            v-if="tournaments.current.status === 'draft'"
-            id="open-wizard"
-            class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-            :to="{ name: 'tournament-wizard', params: { id: tournamentId } }"
-          >
-            {{ strings.tournaments.publishWizard }}
-          </RouterLink>
-          <button
-            id="open-edit-tournament"
+            v-for="phase in resultPhases"
+            :id="`results-phase-${phase.id}`"
+            :key="phase.id"
             class="inline-flex h-11 items-center rounded-md border border-border px-4 text-sm font-medium"
-            type="button"
-            @click="editOpen = true"
+            :to="{ name: 'phase-results', params: { id: tournamentId, phaseId: phase.id } }"
           >
-            {{ strings.tournamentDetail.editTitle }}
-          </button>
+            {{ resultsLinkLabel(phase) }} · {{ phase.name }}
+          </RouterLink>
         </div>
-      </div>
 
-      <template v-if="isOrganizer">
-        <PhaseResolutionPanel
-          v-for="phase in resolutionPhases"
-          :key="phase.id"
-          :phase-id="phase.id"
-          :phase-name="phase.name"
-          @resolved="phases.load(tournamentId)"
+        <div v-if="openVotePhases.length > 0" class="space-y-2">
+          <h2 class="text-base font-semibold">{{ strings.voting.title }}</h2>
+          <RouterLink
+            v-for="phase in openVotePhases"
+            :id="`vote-phase-${phase.id}`"
+            :key="phase.id"
+            class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+            :to="{ name: 'phase-vote', params: { id: tournamentId, phaseId: phase.id } }"
+          >
+            {{ strings.voting.open }} · {{ phase.name }}
+          </RouterLink>
+        </div>
+
+        <img
+          v-if="tournaments.current.coverUrl"
+          :src="tournaments.current.coverUrl"
+          :alt="strings.tournamentDetail.cover"
+          class="max-h-64 w-full rounded-md border border-border object-cover"
         />
-      </template>
 
-      <div v-if="resultPhases.length > 0" class="space-y-2">
-        <h2 class="text-base font-semibold">{{ strings.results.title }}</h2>
-        <RouterLink
-          v-for="phase in resultPhases"
-          :id="`results-phase-${phase.id}`"
-          :key="phase.id"
-          class="inline-flex h-11 items-center rounded-md border border-border px-4 text-sm font-medium"
-          :to="{ name: 'phase-results', params: { id: tournamentId, phaseId: phase.id } }"
-        >
-          {{ resultsLinkLabel(phase) }} · {{ phase.name }}
-        </RouterLink>
-      </div>
+        <div class="space-y-2">
+          <h2 class="text-base font-semibold">{{ strings.tournamentDetail.description }}</h2>
+          <p v-if="tournaments.current.description" class="text-sm">
+            {{ tournaments.current.description }}
+          </p>
+          <p v-else class="text-sm text-muted-foreground">
+            {{ strings.tournamentDetail.noDescription }}
+          </p>
+        </div>
 
-      <div v-if="openVotePhases.length > 0" class="space-y-2">
-        <h2 class="text-base font-semibold">{{ strings.voting.title }}</h2>
-        <RouterLink
-          v-for="phase in openVotePhases"
-          :id="`vote-phase-${phase.id}`"
-          :key="phase.id"
-          class="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-          :to="{ name: 'phase-vote', params: { id: tournamentId, phaseId: phase.id } }"
-        >
-          {{ strings.voting.open }} · {{ phase.name }}
-        </RouterLink>
-      </div>
-
-      <img
-        v-if="tournaments.current.coverUrl"
-        :src="tournaments.current.coverUrl"
-        :alt="strings.tournamentDetail.cover"
-        class="max-h-64 w-full rounded-md border border-border object-cover"
-      />
-
-      <div class="space-y-2">
-        <h2 class="text-base font-semibold">{{ strings.tournamentDetail.description }}</h2>
-        <p v-if="tournaments.current.description" class="text-sm">
-          {{ tournaments.current.description }}
-        </p>
-        <p v-else class="text-sm text-muted-foreground">
-          {{ strings.tournamentDetail.noDescription }}
-        </p>
-      </div>
-
-      <OrganizersPanel
-        v-if="tournaments.current.organizers.length > 0"
-        :tournament-id="tournamentId"
-        :can-manage="isOwner"
-      />
-
-      <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
-
-      <template v-if="isOrganizer">
-        <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
-        <PhasesPanel
+        <OrganizersPanel
+          v-if="tournaments.current.organizers.length > 0"
           :tournament-id="tournamentId"
-          :editable="phasesEditable"
-          :auto-advance="tournaments.current.settings.autoAdvance"
-          :can-open="isOrganizer && tournaments.current.status !== 'draft'"
+          :can-manage="isOwner"
         />
-        <PlanPreviewPanel :tournament-id="tournamentId" />
-        <CustomFieldsPanel :tournament-id="tournamentId" />
+
+        <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
+
+        <template v-if="isOrganizer">
+          <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
+          <PhasesPanel
+            :tournament-id="tournamentId"
+            :editable="phasesEditable"
+            :auto-advance="tournaments.current.settings.autoAdvance"
+            :can-open="isOrganizer && tournaments.current.status !== 'draft'"
+          />
+          <PlanPreviewPanel :tournament-id="tournamentId" />
+
+          <div
+            v-if="tournaments.current.status === 'draft'"
+            class="space-y-3 rounded-md border border-border p-4"
+          >
+            <div class="space-y-1">
+              <h2 class="text-base font-semibold">{{ strings.wizard.publishTitle }}</h2>
+              <p class="text-sm text-muted-foreground">{{ strings.wizard.publishSubtitle }}</p>
+            </div>
+
+            <p v-if="planPreview.loading" class="text-sm text-muted-foreground">
+              {{ strings.planPreview.loading }}
+            </p>
+            <p
+              v-else-if="planPreview.result && !planPreview.result.valid"
+              class="text-sm text-destructive"
+              role="alert"
+            >
+              {{ strings.wizard.publishInvalid }}
+            </p>
+            <ul
+              v-if="planPreview.result && !planPreview.result.valid"
+              class="space-y-1 text-sm text-destructive"
+            >
+              <li v-for="(issue, index) in planPreview.result.errors" :key="`${issue.code}-${index}`">
+                {{ planIssueMessage(issue.code) }}
+              </li>
+            </ul>
+            <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
+              {{ tournaments.error }}
+            </p>
+
+            <button
+              id="publish-tournament"
+              class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+              type="button"
+              :disabled="!canPublish"
+              @click="publishTournament"
+            >
+              {{ tournaments.publishing ? strings.wizard.publishing : strings.wizard.publish }}
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <div v-else-if="activeTab === 'elements'" class="space-y-4">
         <ElementsPanel :tournament-id="tournamentId" :add-locked="elementsAddLocked" />
-      </template>
+      </div>
+
+      <div v-else-if="activeTab === 'fields'" class="space-y-4">
+        <CustomFieldsPanel :tournament-id="tournamentId" />
+      </div>
+
 
     <AppModal
       :open="editOpen"

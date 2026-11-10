@@ -107,13 +107,14 @@ async function submitPublish(): Promise<void> {
 
 <template>
   <section class="space-y-6" data-testid="tournament-wizard">
-    <BackLink
-      :to="{ name: 'tournament', params: { id: tournamentId } }"
-      :label="strings.wizard.back"
-    />
-
     <div class="space-y-1">
-      <h1 class="text-2xl font-semibold tracking-tight">{{ strings.wizard.title }}</h1>
+      <div class="flex items-center gap-2">
+        <BackLink
+          :to="{ name: 'tournament', params: { id: tournamentId } }"
+          :label="strings.wizard.back"
+        />
+        <h1 class="text-2xl font-semibold tracking-tight">{{ strings.wizard.title }}</h1>
+      </div>
       <p class="text-sm text-muted-foreground">{{ strings.wizard.subtitle }}</p>
     </div>
 
@@ -151,22 +152,39 @@ async function submitPublish(): Promise<void> {
 
       <template v-else-if="isOrganizer && isDraft">
         <nav
-          class="flex flex-wrap gap-2"
+          class="overflow-x-auto pb-1"
           :aria-label="strings.wizard.stepsLabel"
           data-testid="wizard-steps"
         >
-          <button
-            v-for="(item, index) in STEPS"
-            :key="item"
-            class="h-10 rounded-md border px-3 text-sm font-medium"
-            :class="step === item ? 'border-primary bg-primary text-primary-foreground' : 'border-border'"
-            type="button"
-            :data-testid="`wizard-step-${item}`"
-            :aria-current="step === item ? 'step' : undefined"
-            @click="goTo(item)"
-          >
-            {{ index + 1 }}. {{ strings.wizard.steps[item] }}
-          </button>
+          <div class="flex min-w-max items-center gap-1.5">
+            <template v-for="(item, index) in STEPS" :key="item">
+              <button
+                class="flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors"
+                :class="
+                  step === item
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                "
+                type="button"
+                :data-testid="`wizard-step-${item}`"
+                :aria-current="step === item ? 'step' : undefined"
+                @click="goTo(item)"
+              >
+                <span
+                  class="flex size-6 items-center justify-center rounded-full text-xs font-semibold"
+                  :class="step === item ? 'bg-primary-foreground/20' : 'bg-muted'"
+                >
+                  {{ index + 1 }}
+                </span>
+                {{ strings.wizard.steps[item] }}
+              </button>
+              <span
+                v-if="index < STEPS.length - 1"
+                class="h-px w-4 shrink-0 bg-border"
+                aria-hidden="true"
+              />
+            </template>
+          </div>
         </nav>
 
         <div class="space-y-3 rounded-md border border-border p-4">

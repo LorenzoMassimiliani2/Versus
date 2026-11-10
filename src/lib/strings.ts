@@ -109,6 +109,12 @@ export const strings = {
   },
   tournamentDetail: {
     back: 'Torna ai tornei',
+    tabs: {
+      details: 'Dettagli',
+      elements: 'Elementi',
+      fields: 'Campi',
+    },
+    editLabel: 'Modifica dettagli',
     draftNotice: 'Questo torneo è in bozza: è visibile solo agli organizzatori.',
     slug: 'Slug',
     status: 'Stato',
