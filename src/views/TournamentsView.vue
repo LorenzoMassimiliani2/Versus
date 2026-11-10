@@ -4,10 +4,8 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import AppModal from '@/components/ui/AppModal.vue'
 import { strings, tournamentRoleLabel, tournamentStatusLabel } from '@/lib/strings'
-import { useSessionStore } from '@/stores/session'
 import { useTournamentsStore } from '@/stores/tournaments'
 
-const session = useSessionStore()
 const tournaments = useTournamentsStore()
 const router = useRouter()
 const route = useRoute()
@@ -53,10 +51,6 @@ async function submitCreate(): Promise<void> {
   await router.push({ name: 'tournament', params: { id: created.id } })
 }
 
-async function signOut(): Promise<void> {
-  await session.logout()
-  await router.push({ name: 'login' })
-}
 </script>
 
 <template>
@@ -66,23 +60,14 @@ async function signOut(): Promise<void> {
         <h1 class="text-2xl font-semibold tracking-tight">{{ strings.tournaments.title }}</h1>
         <p class="text-sm text-muted-foreground">{{ strings.tournaments.subtitle }}</p>
       </div>
-      <div class="flex shrink-0 gap-2">
-        <button
-          id="open-create-tournament"
-          class="h-10 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
-          type="button"
-          @click="createOpen = true"
-        >
-          {{ strings.tournaments.createTitle }}
-        </button>
-        <button
-          class="h-10 rounded-md border border-border px-3 text-sm font-medium"
-          type="button"
-          @click="signOut"
-        >
-          {{ strings.tournaments.logout }}
-        </button>
-      </div>
+      <button
+        id="open-create-tournament"
+        class="h-10 shrink-0 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+        type="button"
+        @click="createOpen = true"
+      >
+        {{ strings.tournaments.createTitle }}
+      </button>
     </div>
 
     <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">

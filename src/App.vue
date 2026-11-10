@@ -2,6 +2,7 @@
 import { RouterView } from 'vue-router'
 
 import BottomTabs from '@/components/BottomTabs.vue'
+import UserMenu from '@/components/UserMenu.vue'
 </script>
 
 <template>
@@ -14,6 +15,7 @@ import BottomTabs from '@/components/BottomTabs.vue'
           V
         </span>
         <span class="text-base font-semibold tracking-tight">Versus</span>
+        <UserMenu />
       </div>
     </header>
 
