@@ -109,7 +109,6 @@ export const strings = {
   },
   tournamentDetail: {
     back: 'Torna ai tornei',
-    editLabel: 'Modifica dettagli',
     publishLocked: 'La pubblicazione è disponibile solo per un torneo in bozza.',
     summaryPhases: (count: number) => `${count} ${count === 1 ? 'fase' : 'fasi'}`,
     currentPhase: (name: string) => `Fase corrente: ${name}`,
@@ -119,7 +118,6 @@ export const strings = {
       plan: 'Piano valido',
       progress: (done: number, total: number) => `${done}/${total} requisiti`,
     },
-    draftNotice: 'Questo torneo è in bozza: è visibile solo agli organizzatori.',
     slug: 'Slug',
     status: 'Stato',
     description: 'Descrizione',

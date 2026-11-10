@@ -77,7 +77,7 @@ describe('TournamentDetailView', () => {
     const { wrapper } = await mountView()
 
     expect(wrapper.text()).toContain('Torneo di prova')
-    expect(wrapper.text()).toContain('visibile solo agli organizzatori')
+    expect(wrapper.text()).not.toContain('visibile solo agli organizzatori')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.find('#open-wizard').exists()).toBe(false)
     expect(wrapper.get('#tab-details').text()).toBe('Dettagli')
@@ -87,9 +87,9 @@ describe('TournamentDetailView', () => {
     expect(wrapper.get('#tab-plan').text()).toBe('Piano')
     expect(wrapper.get('#tab-preview').text()).toBe('Anteprima')
     expect(wrapper.get('#tab-publish').text()).toBe('Pubblica')
-    expect(wrapper.get('#open-edit-tournament').attributes('aria-label')).toBe('Modifica dettagli')
+    expect(wrapper.find('#open-edit-tournament').exists()).toBe(false)
+    expect(wrapper.find('#tournament-edit-form').exists()).toBe(true)
 
-    await wrapper.get('#open-edit-tournament').trigger('click')
     await wrapper.get('#edit-name').setValue('Torneo rinominato')
     await wrapper.get('#edit-description').setValue('Nuova descrizione')
     await wrapper.get('#tournament-edit-form').trigger('submit')
