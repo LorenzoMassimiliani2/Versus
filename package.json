@@ -1,0 +1,51 @@
+{
+  "name": "versus",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Versus — tornei configurabili con voto e crediti",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc -b",
+    "types": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply versus-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply versus-db --remote",
+    "deploy:ci": "if [ \"$WORKERS_CI_BRANCH\" = \"main\" ]; then npx wrangler d1 migrations apply versus-db --remote; fi && npx wrangler deploy",
+    "dev:api": "npm run build && wrangler dev",
+    "dev:all": "concurrently -k -n api,web -c yellow,cyan \"npm:dev:api\" \"npm:dev\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.69.0",
+    "@vueuse/core": "^15.0.0",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.5.2",
+    "pinia": "^4.1.0",
+    "reka-ui": "^2.11.0",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/node": "^24.19.2",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
+    "concurrently": "^10.0.6",
+    "happy-dom": "^21.0.4",
+    "tailwindcss": "^4.3.4",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.6",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14",
+    "wrangler": "^4.157.0"
+  }
+}

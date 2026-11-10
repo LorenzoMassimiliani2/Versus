@@ -1,12 +1,25 @@
 {
     "packageProcessor": "npm",
     "commands": {
-        "Sample command": {
-            "description": "Sample command to be modified",
-            "command": "echo 'Hello World !'",
-            "environment": {
-                "sample-variable": "foobar"
-            }
+        "Dev": {
+            "description": "Avvia frontend e API",
+            "command": "npm run dev:all",
+            "environment": {}
+        },
+        "Test": {
+            "description": "Esegue i test",
+            "command": "npm test",
+            "environment": {}
+        },
+        "Type check": {
+            "description": "Controlla i tipi",
+            "command": "npm run type-check",
+            "environment": {}
+        },
+        "Build": {
+            "description": "Compila frontend e worker",
+            "command": "npm run build",
+            "environment": {}
         }
     }
 }
