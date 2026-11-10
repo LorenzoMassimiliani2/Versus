@@ -27,6 +27,8 @@ export default defineConfig({
             'src/views/**/*.test.ts',
             'src/components/**/*.test.ts',
             'src/composables/**/*.test.ts',
+            'src/router/**/*.test.ts',
+            'src/stores/**/*.test.ts',
           ],
         },
       },

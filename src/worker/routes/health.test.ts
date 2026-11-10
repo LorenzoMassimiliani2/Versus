@@ -15,13 +15,13 @@ describe('GET /api/health', () => {
     expect(await response.json()).toEqual({ ok: true })
   })
 
-  it('non intercetta le altre rotte', async () => {
+  it('non intercetta le altre rotte, che restano protette', async () => {
     const response = await worker.fetch(
       new Request('https://versus.test/api/altro'),
       {} as Env,
       {} as ExecutionContext,
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 })
