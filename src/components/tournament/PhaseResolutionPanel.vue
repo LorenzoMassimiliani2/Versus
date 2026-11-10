@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { strings } from '@/lib/strings'
@@ -66,10 +67,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <section
-    class="space-y-4 rounded-md border border-border bg-muted/30 p-4"
-    data-testid="resolution-panel"
-  >
+  <SectionCard class="space-y-4" data-testid="resolution-panel">
     <div class="space-y-1">
       <h2 class="text-base font-semibold">{{ strings.resolution.title }} · {{ phaseName }}</h2>
       <p class="text-sm text-muted-foreground">{{ strings.resolution.subtitle }}</p>
@@ -150,5 +148,5 @@ async function submit(): Promise<void> {
         {{ store.saving ? strings.resolution.confirming : strings.resolution.confirm }}
       </button>
     </form>
-  </section>
+  </SectionCard>
 </template>

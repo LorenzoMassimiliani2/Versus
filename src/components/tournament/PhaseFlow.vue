@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { strings } from '@/lib/strings'
+import { phaseStatusClass } from '@/lib/status'
 import type { Phase } from '@/stores/phases'
 
 const props = defineProps<{ phases: readonly Phase[] }>()
@@ -17,11 +18,7 @@ function advanceSummary(phase: Phase): string {
 }
 
 function tone(status: Phase['status']): string {
-  if (status === 'open') return 'border-primary bg-primary/5'
-  if (status === 'awaiting_resolution') return 'border-amber-300 bg-amber-50'
-  if (status === 'closed') return 'border-emerald-300 bg-emerald-50'
-  if (status === 'cancelled') return 'border-border bg-muted/30 opacity-60'
-  return 'border-border bg-card'
+  return `${phaseStatusClass(status)} ${status === 'open' ? 'ring-2 ring-primary/20' : ''}`
 }
 </script>
 

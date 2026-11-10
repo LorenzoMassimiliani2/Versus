@@ -1,5 +1,6 @@
 
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { onMounted } from 'vue'
 
 import type { PlanIssue, PlanMatchPreview, PlanPhasePreview } from '@/domain/plan'
@@ -36,7 +37,7 @@ function qualifiesLabel(phase: PlanPhasePreview): string {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border border-border p-4" data-testid="plan-preview-panel">
+  <SectionCard class="space-y-4" data-testid="plan-preview-panel">
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div class="space-y-1">
         <h2 class="text-base font-semibold">{{ strings.planPreview.title }}</h2>
@@ -143,5 +144,5 @@ function qualifiesLabel(phase: PlanPhasePreview): string {
         </ol>
       </div>
     </template>
-  </section>
+  </SectionCard>
 </template>

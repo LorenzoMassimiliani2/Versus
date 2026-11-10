@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { FileText, Eye, Image as ImageIcon, Rocket, Route, SlidersHorizontal, Users } from '@lucide/vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import AppModal from '@/components/ui/AppModal.vue'
 import BackLink from '@/components/ui/BackLink.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
 import AuditLogPanel from '@/components/tournament/AuditLogPanel.vue'
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
@@ -14,7 +16,9 @@ import PhaseResolutionPanel from '@/components/tournament/PhaseResolutionPanel.v
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
 import { planIssueMessage, strings, tournamentStatusLabel } from '@/lib/strings'
+import { tournamentStatusClass } from '@/lib/status'
 import { useElementsStore } from '@/stores/elements'
+import { useParticipantsStore } from '@/stores/participants'
 import { usePhasesStore } from '@/stores/phases'
 import { usePlanPreviewStore } from '@/stores/plan-preview'
 import { useTournamentsStore } from '@/stores/tournaments'
@@ -22,6 +26,7 @@ import { useTournamentsStore } from '@/stores/tournaments'
 const route = useRoute()
 const tournaments = useTournamentsStore()
 const elements = useElementsStore()
+const participants = useParticipantsStore()
 const phases = usePhasesStore()
 const planPreview = usePlanPreviewStore()
 
@@ -35,14 +40,14 @@ type DetailTab =
   | 'preview'
   | 'publish'
 const activeTab = ref<DetailTab>('details')
-const organizerTabs: Array<{ id: DetailTab; label: string }> = [
-  { id: 'details', label: strings.wizard.steps.details },
-  { id: 'fields', label: strings.wizard.steps.fields },
-  { id: 'elements', label: strings.wizard.steps.elements },
-  { id: 'participants', label: strings.wizard.steps.participants },
-  { id: 'plan', label: strings.wizard.steps.plan },
-  { id: 'preview', label: strings.wizard.steps.preview },
-  { id: 'publish', label: strings.wizard.steps.publish },
+const organizerTabs: Array<{ id: DetailTab; label: string; icon: Component }> = [
+  { id: 'details', label: strings.wizard.steps.details, icon: FileText },
+  { id: 'fields', label: strings.wizard.steps.fields, icon: SlidersHorizontal },
+  { id: 'elements', label: strings.wizard.steps.elements, icon: ImageIcon },
+  { id: 'participants', label: strings.wizard.steps.participants, icon: Users },
+  { id: 'plan', label: strings.wizard.steps.plan, icon: Route },
+  { id: 'preview', label: strings.wizard.steps.preview, icon: Eye },
+  { id: 'publish', label: strings.wizard.steps.publish, icon: Rocket },
 ]
 const isOrganizer = computed(
   () => tournaments.current?.role === 'owner' || tournaments.current?.role === 'co_organizer',
@@ -50,7 +55,7 @@ const isOrganizer = computed(
 const tabs = computed(() =>
   isOrganizer.value
     ? organizerTabs
-    : [{ id: 'details' as const, label: strings.wizard.steps.details }],
+    : [{ id: 'details' as const, label: strings.wizard.steps.details, icon: FileText }],
 )
 const isOwner = computed(() => tournaments.current?.role === 'owner')
 const activePhase = computed(() =>
@@ -87,12 +92,34 @@ const resultPhases = computed(() =>
 const resolutionPhases = computed(() =>
   phases.phases.filter((phase) => phase.status === 'awaiting_resolution'),
 )
+const currentPhase = computed(
+  () =>
+    phases.phases.find((phase) => phase.status === 'open') ??
+    phases.phases.find((phase) => phase.status === 'awaiting_resolution') ??
+    null,
+)
+const summaryLine = computed(() => {
+  const parts: string[] = []
+  if (phases.phases.length > 0) parts.push(strings.tournamentDetail.summaryPhases(phases.phases.length))
+  if (currentPhase.value) parts.push(strings.tournamentDetail.currentPhase(currentPhase.value.name))
+  return parts.join(' · ')
+})
+const hasEnoughElements = computed(() => elements.elements.length >= 2)
+const hasParticipants = computed(() => participants.activeCount >= 1)
+const planValid = computed(() => planPreview.result?.valid === true)
+const publishChecklist = computed(() => [
+  { label: strings.tournamentDetail.checklist.elements, done: hasEnoughElements.value },
+  { label: strings.tournamentDetail.checklist.participants, done: hasParticipants.value },
+  { label: strings.tournamentDetail.checklist.plan, done: planValid.value },
+])
 const canPublish = computed(
   () =>
     isOrganizer.value &&
     tournaments.current?.status === 'draft' &&
     !tournaments.publishing &&
-    planPreview.result?.valid === true,
+    hasEnoughElements.value &&
+    hasParticipants.value &&
+    planValid.value,
 )
 
 const editName = ref('')
@@ -111,6 +138,7 @@ onMounted(async () => {
       elements.load(tournamentId.value),
       phases.load(tournamentId.value),
       planPreview.load(tournamentId.value),
+      participants.load(tournamentId.value),
     ])
   } else {
     await phases.load(tournamentId.value)
@@ -173,7 +201,10 @@ async function submitEdit(): Promise<void> {
           <h1 class="min-w-0 truncate text-2xl font-semibold tracking-tight">
             {{ tournaments.current.name }}
           </h1>
-          <span class="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs">
+          <span
+            class="shrink-0 rounded-full border px-2 py-0.5 text-xs"
+            :class="tournamentStatusClass(tournaments.current.status)"
+          >
             {{ tournamentStatusLabel(tournaments.current.status) }}
           </span>
           <span class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -203,9 +234,7 @@ async function submitEdit(): Promise<void> {
             </svg>
           </button>
         </div>
-        <p class="text-sm text-muted-foreground">
-          {{ strings.tournamentDetail.slug }}: {{ tournaments.current.slug }}
-        </p>
+        <p v-if="summaryLine" class="text-sm text-muted-foreground">{{ summaryLine }}</p>
         <p
           v-if="tournaments.current.status === 'draft'"
           class="rounded-md border border-border bg-muted/40 p-3 text-sm"
@@ -216,7 +245,7 @@ async function submitEdit(): Promise<void> {
 
       <nav
         v-if="isOrganizer"
-        class="overflow-x-auto rounded-lg border border-border bg-muted/30 p-1"
+        class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl bg-background/95 p-1 shadow-sm backdrop-blur"
         aria-label="Sezioni del torneo"
       >
         <div class="flex min-w-max gap-1">
@@ -224,16 +253,17 @@ async function submitEdit(): Promise<void> {
             v-for="tab in tabs"
             :id="`tab-${tab.id}`"
             :key="tab.id"
-            class="h-10 rounded-md px-3 text-sm font-medium transition-colors"
+            class="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors"
             :class="
               activeTab === tab.id
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-muted text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
             "
             type="button"
             :aria-current="activeTab === tab.id ? 'page' : undefined"
             @click="activeTab = tab.id"
           >
+            <component :is="tab.icon" class="size-4 shrink-0" aria-hidden="true" />
             {{ tab.label }}
           </button>
         </div>
@@ -276,30 +306,33 @@ async function submitEdit(): Promise<void> {
           </RouterLink>
         </div>
 
-        <img
-          v-if="tournaments.current.coverUrl"
-          :src="tournaments.current.coverUrl"
-          :alt="strings.tournamentDetail.cover"
-          class="max-h-64 w-full rounded-md border border-border object-cover"
-        />
+        <div class="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+          <div class="space-y-5">
+            <img
+              v-if="tournaments.current.coverUrl"
+              :src="tournaments.current.coverUrl"
+              :alt="strings.tournamentDetail.cover"
+              class="max-h-64 w-full rounded-2xl object-cover"
+            />
+            <SectionCard :title="strings.tournamentDetail.description">
+              <p v-if="tournaments.current.description" class="text-sm">
+                {{ tournaments.current.description }}
+              </p>
+              <p v-else class="text-sm text-muted-foreground">
+                {{ strings.tournamentDetail.noDescription }}
+              </p>
+            </SectionCard>
+          </div>
 
-        <div class="space-y-2">
-          <h2 class="text-base font-semibold">{{ strings.tournamentDetail.description }}</h2>
-          <p v-if="tournaments.current.description" class="text-sm">
-            {{ tournaments.current.description }}
-          </p>
-          <p v-else class="text-sm text-muted-foreground">
-            {{ strings.tournamentDetail.noDescription }}
-          </p>
+          <div class="space-y-5">
+            <OrganizersPanel
+              v-if="tournaments.current.organizers.length > 0"
+              :tournament-id="tournamentId"
+              :can-manage="isOwner"
+            />
+            <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
+          </div>
         </div>
-
-        <OrganizersPanel
-          v-if="tournaments.current.organizers.length > 0"
-          :tournament-id="tournamentId"
-          :can-manage="isOwner"
-        />
-
-        <AuditLogPanel v-if="isOrganizer" :tournament-id="tournamentId" />
 
       </div>
 
@@ -329,38 +362,59 @@ async function submitEdit(): Promise<void> {
         <PlanPreviewPanel :tournament-id="tournamentId" />
       </div>
 
-      <div v-else-if="activeTab === 'publish'" class="space-y-3 rounded-md border border-border p-4">
+      <SectionCard
+        v-else-if="activeTab === 'publish'"
+        :title="strings.wizard.publishTitle"
+        :subtitle="strings.wizard.publishSubtitle"
+      >
         <template v-if="tournaments.current.status === 'draft'">
-          <div class="space-y-1">
-            <h2 class="text-base font-semibold">{{ strings.wizard.publishTitle }}</h2>
-            <p class="text-sm text-muted-foreground">{{ strings.wizard.publishSubtitle }}</p>
+          <div class="space-y-2">
+            <div
+              v-for="item in publishChecklist"
+              :key="item.label"
+              class="flex items-center gap-3 rounded-xl bg-background/70 px-3 py-2"
+            >
+              <span
+                class="flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                :class="
+                  item.done
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : 'bg-muted text-muted-foreground'
+                "
+              >
+                {{ item.done ? '✓' : '–' }}
+              </span>
+              <span class="text-sm">{{ item.label }}</span>
+            </div>
           </div>
 
-          <p v-if="planPreview.loading" class="text-sm text-muted-foreground">
-            {{ strings.planPreview.loading }}
+          <p class="mt-3 text-xs text-muted-foreground">
+            {{
+              strings.tournamentDetail.checklist.progress(
+                publishChecklist.filter((item) => item.done).length,
+                publishChecklist.length,
+              )
+            }}
           </p>
-          <p
-            v-else-if="planPreview.result && !planPreview.result.valid"
-            class="text-sm text-destructive"
-            role="alert"
-          >
-            {{ strings.wizard.publishInvalid }}
+
+          <p v-if="planPreview.loading" class="mt-3 text-sm text-muted-foreground">
+            {{ strings.planPreview.loading }}
           </p>
           <ul
             v-if="planPreview.result && !planPreview.result.valid"
-            class="space-y-1 text-sm text-destructive"
+            class="mt-3 space-y-1 text-sm text-destructive"
           >
             <li v-for="(issue, index) in planPreview.result.errors" :key="`${issue.code}-${index}`">
               {{ planIssueMessage(issue.code) }}
             </li>
           </ul>
-          <p v-if="tournaments.error" class="text-sm text-destructive" role="alert">
+          <p v-if="tournaments.error" class="mt-3 text-sm text-destructive" role="alert">
             {{ tournaments.error }}
           </p>
 
           <button
             id="publish-tournament"
-            class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            class="mt-4 h-11 w-full rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60 sm:w-auto"
             type="button"
             :disabled="!canPublish"
             @click="publishTournament"
@@ -371,7 +425,7 @@ async function submitEdit(): Promise<void> {
         <p v-else class="text-sm text-muted-foreground">
           {{ strings.tournamentDetail.publishLocked }}
         </p>
-      </div>
+      </SectionCard>
 
 
     <AppModal

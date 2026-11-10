@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, onMounted, ref } from 'vue'
 
 import {
@@ -11,6 +12,7 @@ import {
   type RepechageRule,
 } from '@/domain/phases'
 import { strings } from '@/lib/strings'
+import { phaseStatusClass } from '@/lib/status'
 import { usePhasesStore, type Phase, type PhaseInput } from '@/stores/phases'
 import { usePlanPreviewStore } from '@/stores/plan-preview'
 
@@ -28,6 +30,7 @@ const store = usePhasesStore()
 const planPreview = usePlanPreviewStore()
 
 const editingId = ref<string | null>(null)
+const formOpen = ref(false)
 const name = ref('')
 const formula = ref<PhaseFormula>('group')
 const voteType = ref<PhaseVoteType>('ranking')
@@ -121,7 +124,18 @@ function resetForm(): void {
   repechage.value = undefined
 }
 
+function startCreate(): void {
+  resetForm()
+  formOpen.value = true
+}
+
+function cancelForm(): void {
+  formOpen.value = false
+  resetForm()
+}
+
 function startEdit(phase: Phase): void {
+  formOpen.value = true
   editingId.value = phase.id
   name.value = phase.name
   formula.value = phase.formula
@@ -197,6 +211,7 @@ async function submit(): Promise<void> {
     ? await store.update(editingId.value, input)
     : await store.create(props.tournamentId, input)
   if (ok) {
+    formOpen.value = false
     resetForm()
     refreshPreview()
   }
@@ -276,11 +291,26 @@ function cancelOpen(): void {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border border-border p-4">
-    <div class="space-y-1">
-      <h2 class="text-base font-semibold">{{ strings.phases.title }}</h2>
-      <p class="text-sm text-muted-foreground">{{ strings.phases.subtitle }}</p>
+  <SectionCard class="space-y-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="space-y-1">
+        <h2 class="text-base font-semibold">{{ strings.phases.title }}</h2>
+        <p class="text-sm text-muted-foreground">{{ strings.phases.subtitle }}</p>
+      </div>
+      <button
+        v-if="editable"
+        id="open-create-phase"
+        class="h-10 shrink-0 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        type="button"
+        :disabled="!canAddPhase"
+        @click="startCreate"
+      >
+        + {{ strings.phases.addTitle }}
+      </button>
     </div>
+    <p v-if="editable && !canAddPhase" class="text-sm text-muted-foreground" role="status">
+      {{ strings.phases.addBlocked }}
+    </p>
 
     <p v-if="store.error" class="text-sm text-destructive" role="alert">{{ store.error }}</p>
     <p v-if="store.loading && store.phases.length === 0" class="text-sm text-muted-foreground">
@@ -303,7 +333,7 @@ function cancelOpen(): void {
         <div class="min-w-0 flex-1 space-y-0.5">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-medium">{{ phase.name }}</span>
-            <span class="rounded-full border border-border px-2 py-0.5 text-xs">
+            <span class="rounded-full border px-2 py-0.5 text-xs" :class="phaseStatusClass(phase.status)">
               {{ strings.phases.statusLabels[phase.status] }}
             </span>
             <span
@@ -468,7 +498,7 @@ function cancelOpen(): void {
 
     <p v-if="!editable" class="text-sm text-muted-foreground">{{ strings.phases.locked }}</p>
 
-    <form v-else class="space-y-3 border-t border-border pt-4" @submit.prevent="submit">
+    <form v-else-if="formOpen" class="space-y-3 border-t border-border/60 pt-4" @submit.prevent="submit">
       <p v-if="!editingId && !canAddPhase" class="text-sm text-muted-foreground" role="status">
         {{ strings.phases.addBlocked }}
       </p>
@@ -635,10 +665,9 @@ function cancelOpen(): void {
           {{ editingId ? strings.phases.update : strings.phases.create }}
         </button>
         <button
-          v-if="editingId"
           class="h-11 rounded-md border border-border px-4 text-sm"
           type="button"
-          @click="resetForm"
+          @click="cancelForm"
         >
           {{ strings.phases.cancel }}
         </button>
@@ -657,5 +686,5 @@ function cancelOpen(): void {
         </li>
       </ol>
     </div>
-  </section>
+  </SectionCard>
 </template>

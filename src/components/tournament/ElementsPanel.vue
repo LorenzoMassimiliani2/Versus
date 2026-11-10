@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, ref } from 'vue'
 
 import ElementCard from './ElementCard.vue'
@@ -112,7 +113,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border border-border p-4">
+  <SectionCard class="space-y-4">
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-1">
         <h2 class="text-base font-semibold">{{ strings.elements.title }}</h2>
@@ -254,5 +255,5 @@ async function submit(): Promise<void> {
         </div>
       </form>
     </AppModal>
-  </section>
+  </SectionCard>
 </template>

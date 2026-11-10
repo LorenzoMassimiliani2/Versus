@@ -108,6 +108,7 @@ describe('PhasesPanel', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const wrapper = await mountPanel()
+    await wrapper.get('#open-create-phase').trigger('click')
     await wrapper.get('#phase-name').setValue('Semifinali')
     await wrapper.get('form').trigger('submit')
     await flushPromises()

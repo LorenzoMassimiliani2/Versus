@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, onMounted, ref } from 'vue'
 
 import { strings } from '@/lib/strings'
@@ -26,7 +27,7 @@ async function submitAdd(): Promise<void> {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border border-border p-4">
+  <SectionCard class="space-y-4">
     <div class="space-y-1">
       <h2 class="text-base font-semibold">{{ strings.participants.title }}</h2>
       <p class="text-sm text-muted-foreground">{{ strings.participants.subtitle }}</p>
@@ -108,5 +109,5 @@ async function submitAdd(): Promise<void> {
         {{ strings.participants.noCandidates }}
       </p>
     </form>
-  </section>
+  </SectionCard>
 </template>

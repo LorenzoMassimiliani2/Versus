@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, onMounted, ref } from 'vue'
 
 import { strings, tournamentRoleLabel } from '@/lib/strings'
@@ -30,7 +31,7 @@ async function submitNomination(): Promise<void> {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-md border border-border p-4">
+  <SectionCard class="space-y-4">
     <div class="space-y-1">
       <h2 class="text-base font-semibold">{{ strings.organizers.title }}</h2>
       <p class="text-sm text-muted-foreground">{{ strings.organizers.subtitle }}</p>
@@ -94,5 +95,5 @@ async function submitNomination(): Promise<void> {
         {{ strings.organizers.noCandidates }}
       </p>
     </form>
-  </section>
+  </SectionCard>
 </template>
