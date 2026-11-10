@@ -3,6 +3,7 @@ import { validateCustomValues, type CustomFieldType } from '../../domain/custom-
 import { initialSeeding } from '../../domain/seeding'
 import { parseYouTubeVideoId } from '../../domain/youtube'
 import { uuidv7 } from '../db/ids'
+import { writeAudit } from '../db/audit'
 import {
   countCustomFields,
   deleteCustomField,
@@ -191,6 +192,16 @@ async function createFieldHandler(
 
   const field = await findCustomFieldById(env, id)
   if (!field) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'field.create',
+    targetType: 'custom_field',
+    targetId: id,
+    after: serialiseField(field),
+  })
+
   return json({ field: serialiseField(field) }, { status: 201 })
 }
 
@@ -199,6 +210,7 @@ async function patchFieldHandler(
   env: Env,
   auth: AuthContext,
   fieldId: string,
+  now: number,
 ): Promise<Response> {
   const field = await findCustomFieldById(env, fieldId)
   if (!field) return apiError(404, 'not_found')
@@ -217,6 +229,15 @@ async function patchFieldHandler(
 
   await updateCustomFieldLabel(env, field.id, label)
   const updated = await findCustomFieldById(env, field.id)
+  await writeAudit(env, now, {
+    tournamentId: field.tournament_id,
+    actorId: auth.user.id,
+    action: 'field.update',
+    targetType: 'custom_field',
+    targetId: field.id,
+    before: { label: field.label },
+    after: { label: updated?.label ?? label },
+  })
   return json({ field: serialiseField(updated ?? field) })
 }
 
@@ -233,6 +254,14 @@ async function deleteFieldHandler(
   if (denied) return denied
 
   await deleteCustomField(env, field, new Date(now).toISOString())
+  await writeAudit(env, now, {
+    tournamentId: field.tournament_id,
+    actorId: auth.user.id,
+    action: 'field.delete',
+    targetType: 'custom_field',
+    targetId: field.id,
+    before: serialiseField(field),
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -304,6 +333,16 @@ async function createElementHandler(
 
   const element = await findElementById(env, id)
   if (!element) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'element.create',
+    targetType: 'element',
+    targetId: id,
+    after: serialiseElement(element),
+  })
+
   return json({ element: serialiseElement(element) }, { status: 201 })
 }
 
@@ -368,6 +407,15 @@ async function patchElementHandler(
 
   await updateElement(env, element.id, changes, new Date(now).toISOString())
   const updated = await findElementById(env, element.id)
+  await writeAudit(env, now, {
+    tournamentId: element.tournament_id,
+    actorId: auth.user.id,
+    action: 'element.update',
+    targetType: 'element',
+    targetId: element.id,
+    before: serialiseElement(element),
+    after: serialiseElement(updated ?? element),
+  })
   return json({ element: serialiseElement(updated ?? element) })
 }
 
@@ -386,6 +434,14 @@ async function deleteElementHandler(
   // Il divieto di cancellare elementi usati in una fase arriva con TICKET-0033,
   // quando esistono le tabelle delle fasi.
   await deleteElement(env, element, new Date(now).toISOString())
+  await writeAudit(env, now, {
+    tournamentId: element.tournament_id,
+    actorId: auth.user.id,
+    action: 'element.delete',
+    targetType: 'element',
+    targetId: element.id,
+    before: serialiseElement(element),
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -419,6 +475,16 @@ async function reorderElementsHandler(
   }
 
   await reorderElements(env, tournamentId, nextIds, new Date(now).toISOString())
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'element.reorder',
+    targetType: 'tournament',
+    targetId: tournamentId,
+    before: { ids: elements.map((element) => element.id) },
+    after: { ids: nextIds },
+  })
 
   const reordered = initialSeeding(await listElements(env, tournamentId))
   return json({ elements: reordered.map(serialiseElement) })
@@ -467,7 +533,7 @@ export async function handleElementsRoute(
   const fieldMatch = pathname.match(/^\/api\/fields\/([^/]+)$/)
   if (fieldMatch) {
     const fieldId = decodeURIComponent(fieldMatch[1]!)
-    if (method === 'PATCH') return patchFieldHandler(request, env, auth, fieldId)
+    if (method === 'PATCH') return patchFieldHandler(request, env, auth, fieldId, now)
     if (method === 'DELETE') return deleteFieldHandler(env, auth, fieldId, now)
     return null
   }

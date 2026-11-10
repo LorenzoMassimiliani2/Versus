@@ -19,6 +19,7 @@ import {
   type OrganizerRecord,
   type TournamentRecord,
 } from '../db/tournaments'
+import { writeAudit } from '../db/audit'
 import { apiError, json } from '../http/json'
 
 export const PARTICIPANT_LIMIT = 20
@@ -137,6 +138,17 @@ async function addParticipantHandler(
 
   const participant = await findParticipant(env, tournamentId, userId)
   if (!participant) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'participant.add',
+    targetType: 'participant',
+    targetId: userId,
+    before: { status: existing?.status ?? null },
+    after: { status: 'active' },
+  })
+
   return json({ participant: serialiseParticipant(participant) }, { status: 201 })
 }
 
@@ -155,6 +167,15 @@ async function removeParticipantHandler(
   if (!participant || participant.status !== 'active') return apiError(404, 'not_found')
 
   await removeParticipant(env, tournamentId, userId, new Date(now).toISOString())
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'participant.remove',
+    targetType: 'participant',
+    targetId: userId,
+    before: { status: 'active' },
+    after: { status: 'removed' },
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -217,6 +238,16 @@ async function nominateOrganizerHandler(
     (item) => item.user_id === userId,
   )
   if (!organizer) return apiError(500, 'internal_error')
+
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'organizer.nominate',
+    targetType: 'organizer',
+    targetId: userId,
+    after: { role: 'co_organizer' },
+  })
+
   return json({ organizer: serialiseOrganizer(organizer) }, { status: 201 })
 }
 
@@ -225,6 +256,7 @@ async function revokeOrganizerHandler(
   auth: AuthContext,
   tournamentId: string,
   userId: string,
+  now: number,
 ): Promise<Response> {
   const tournament = await findTournamentById(env, tournamentId)
   if (!tournament) return apiError(404, 'not_found')
@@ -237,6 +269,14 @@ async function revokeOrganizerHandler(
   if (targetRole !== 'co_organizer') return apiError(404, 'not_found')
 
   await deleteOrganizer(env, tournamentId, userId)
+  await writeAudit(env, now, {
+    tournamentId,
+    actorId: auth.user.id,
+    action: 'organizer.revoke',
+    targetType: 'organizer',
+    targetId: userId,
+    before: { role: 'co_organizer' },
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -295,6 +335,7 @@ export async function handleParticipantsRoute(
       auth,
       decodeURIComponent(organizerMatch[1]!),
       decodeURIComponent(organizerMatch[2]!),
+      now,
     )
   }
 

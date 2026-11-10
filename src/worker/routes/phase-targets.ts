@@ -1,5 +1,5 @@
 import type { AuthContext } from '../auth/session'
-import { uuidv7 } from '../db/ids'
+import { writeAudit } from '../db/audit'
 import { findOpenPhaseTarget, findPhaseTarget } from '../db/phase-targets'
 import { findPhaseById } from '../db/phases'
 import { findOrganizerRole } from '../db/tournaments'
@@ -66,22 +66,15 @@ export async function handlePhaseTargetsRoute(
   if (!outcome) return apiError(422, 'invalid_target')
 
   if (outcome.advanced && outcome.targetId) {
-    const timestamp = new Date(now).toISOString()
-    await env.DB.prepare(
-      `INSERT INTO audit_log (id, tournament_id, actor_id, action, target_type, target_id,
-         before, after, created_at)
-       VALUES (?, ?, ?, 'phase.target_advance', 'phase_target', ?, ?, ?, ?)`,
-    )
-      .bind(
-        uuidv7(now),
-        phase.tournament_id,
-        auth.user.id,
-        outcome.targetId,
-        JSON.stringify({ targetId: outcome.targetId, status: 'open' }),
-        JSON.stringify({ nextTargetId: outcome.nextTargetId }),
-        timestamp,
-      )
-      .run()
+    await writeAudit(env, now, {
+      tournamentId: phase.tournament_id,
+      actorId: auth.user.id,
+      action: 'phase.target_advance',
+      targetType: 'phase_target',
+      targetId: outcome.targetId,
+      before: { targetId: outcome.targetId, status: 'open' },
+      after: { nextTargetId: outcome.nextTargetId },
+    })
   }
 
   return json({
