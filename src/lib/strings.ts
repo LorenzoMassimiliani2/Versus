@@ -194,6 +194,10 @@ export const strings = {
   phases: {
     title: 'Piano di fasi',
     subtitle: 'La sequenza delle fasi del torneo. Le fasi non ancora avviate si modificano e si riordinano.',
+    flowTitle: 'Flusso del torneo',
+    flowSubtitle: 'La sequenza delle fasi, dalla prima all ultima.',
+    flowEmpty: 'Aggiungi la prima fase per vedere il flusso del torneo.',
+    flowCount: (count: number) => `${count} ${count === 1 ? 'fase' : 'fasi'}`,
     empty: 'Nessuna fase ancora. Aggiungi la prima.',
     locked: 'Le fasi si modificano e si riordinano solo prima dell avvio, mentre il torneo è in bozza.',
     open: 'Apri fase',

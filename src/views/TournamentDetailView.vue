@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import AppModal from '@/components/ui/AppModal.vue'
+import BackLink from '@/components/ui/BackLink.vue'
 import AuditLogPanel from '@/components/tournament/AuditLogPanel.vue'
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
@@ -110,12 +111,7 @@ async function submitEdit(): Promise<void> {
 
 <template>
   <section class="space-y-6">
-    <RouterLink
-      class="inline-block text-sm font-medium underline underline-offset-4"
-      :to="{ name: 'home' }"
-    >
-      {{ strings.tournamentDetail.back }}
-    </RouterLink>
+    <BackLink :to="{ name: 'home' }" :label="strings.tournamentDetail.back" />
 
     <p v-if="tournaments.error && !tournaments.current" class="text-sm text-destructive" role="alert">
       {{ tournaments.error }}

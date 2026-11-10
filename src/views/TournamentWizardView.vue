@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import BackLink from '@/components/ui/BackLink.vue'
 import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
+import PhaseFlow from '@/components/tournament/PhaseFlow.vue'
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
 import { planIssueMessage, strings, tournamentStatusLabel } from '@/lib/strings'
@@ -105,12 +107,10 @@ async function submitPublish(): Promise<void> {
 
 <template>
   <section class="space-y-6" data-testid="tournament-wizard">
-    <RouterLink
-      class="inline-block text-sm font-medium underline underline-offset-4"
+    <BackLink
       :to="{ name: 'tournament', params: { id: tournamentId } }"
-    >
-      {{ strings.wizard.back }}
-    </RouterLink>
+      :label="strings.wizard.back"
+    />
 
     <div class="space-y-1">
       <h1 class="text-2xl font-semibold tracking-tight">{{ strings.wizard.title }}</h1>
@@ -263,7 +263,10 @@ async function submitPublish(): Promise<void> {
             :tournament-id="tournamentId"
             :editable="true"
           />
-          <PhasesPanel v-else-if="step === 'plan'" :tournament-id="tournamentId" :editable="true" />
+          <div v-else-if="step === 'plan'" class="space-y-5">
+            <PhaseFlow :phases="phases.phases" />
+            <PhasesPanel :tournament-id="tournamentId" :editable="true" />
+          </div>
           <PlanPreviewPanel v-else-if="step === 'preview'" :tournament-id="tournamentId" />
 
           <div v-else-if="step === 'publish'" class="space-y-4" data-testid="wizard-publish">
