@@ -43,7 +43,7 @@ export const strings = {
   tournaments: {
     title: 'Tornei',
     subtitle: 'I tornei che organizzi e quelli a cui partecipi.',
-    tabParticipating: 'Partipa',
+    tabParticipating: 'Partecipa',
     tabOrganizing: 'Organizzazione',
     tabUsers: 'Utenti',
     logout: 'Esci',
