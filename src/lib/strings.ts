@@ -8,12 +8,6 @@ export const strings = {
     submit: 'Accedi',
     submitting: 'Accesso in corso…',
   },
-  home: {
-    title: 'Versus',
-    signedInAs: (username: string) => `Hai effettuato l'accesso come ${username}.`,
-    logout: 'Esci',
-    adminUsers: 'Gestione utenti',
-  },
   adminUsers: {
     title: 'Gestione utenti',
     subtitle: 'Crea utenze, gestisci accessi e ruoli amministratore.',
@@ -44,6 +38,54 @@ export const strings = {
     promote: 'Promuovi ad admin',
     demote: 'Revoca admin',
   },
+  tournaments: {
+    title: 'Tornei',
+    subtitle: 'I tornei che organizzi e quelli a cui partecipi.',
+    tabParticipating: 'Partecipo',
+    tabOrganizing: 'Organizzo',
+    tabUsers: 'Utenti',
+    logout: 'Esci',
+    createTitle: 'Nuovo torneo',
+    name: 'Nome',
+    namePlaceholder: 'es. Torneo di primavera',
+    description: 'Descrizione',
+    coverUrl: 'URL copertina',
+    optional: 'facoltativo',
+    create: 'Crea torneo',
+    creating: 'Creazione…',
+    loading: 'Caricamento…',
+    emptyParticipating: 'Nessun torneo a cui partecipi.',
+    emptyOrganizing: 'Non stai organizzando nessun torneo.',
+    open: 'Apri',
+    status: {
+      draft: 'Bozza',
+      published: 'Pubblicato',
+      running: 'In corso',
+      concluded: 'Concluso',
+      archived: 'Archiviato',
+    },
+    role: {
+      owner: 'Owner',
+      co_organizer: 'Co-organizzatore',
+      participant: 'Partecipante',
+    },
+  },
+  tournamentDetail: {
+    back: 'Torna ai tornei',
+    draftNotice: 'Questo torneo è in bozza: è visibile solo agli organizzatori.',
+    slug: 'Slug',
+    status: 'Stato',
+    description: 'Descrizione',
+    cover: 'Copertina',
+    noDescription: 'Nessuna descrizione.',
+    organizers: 'Organizzatori',
+    editTitle: 'Dettagli del torneo',
+    name: 'Nome',
+    coverUrl: 'URL copertina',
+    save: 'Salva modifiche',
+    saving: 'Salvataggio…',
+    saved: 'Modifiche salvate.',
+  },
   errors: {
     invalid_credentials: 'Username o password non validi.',
     account_disabled: 'Account disattivato. Contatta un amministratore.',
@@ -54,6 +96,7 @@ export const strings = {
     user_limit_reached: 'Limite di 20 utenti attivi raggiunto.',
     username_taken: 'Username già in uso.',
     not_found: 'Utente non trovato.',
+    tournament_not_found: 'Torneo non trovato.',
     network: 'Impossibile contattare il server. Riprova.',
     unknown: 'Errore imprevisto. Riprova.',
   },
@@ -64,6 +107,29 @@ const ERROR_MESSAGES: Record<string, string> = {
   account_disabled: strings.errors.account_disabled,
   rate_limited: strings.errors.rate_limited,
   invalid_request: strings.errors.invalid_request,
+}
+
+const TOURNAMENT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.tournament_not_found,
+}
+
+export function tournamentErrorMessage(code: string | undefined): string {
+  return (code && TOURNAMENT_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+export function tournamentStatusLabel(status: string): string {
+  return (
+    strings.tournaments.status[status as keyof typeof strings.tournaments.status] ??
+    status
+  )
+}
+
+export function tournamentRoleLabel(role: string): string {
+  return (
+    strings.tournaments.role[role as keyof typeof strings.tournaments.role] ?? role
+  )
 }
 
 const ADMIN_USERS_ERROR_MESSAGES: Record<string, string> = {

@@ -3,6 +3,7 @@ import { authenticate } from './auth/session'
 import { apiError } from './http/json'
 import { handleLogin, handleLogout, handleMe } from './routes/auth'
 import { handleHealth } from './routes/health'
+import { handleTournamentsRoute } from './routes/tournaments'
 import { handleUsersRoute } from './routes/users'
 
 export default {
@@ -34,6 +35,9 @@ export default {
     if (url.pathname === '/api/me' && method === 'GET') {
       return handleMe(auth)
     }
+
+    const tournamentsResponse = await handleTournamentsRoute(request, env, auth)
+    if (tournamentsResponse) return tournamentsResponse
 
     const usersResponse = await handleUsersRoute(request, env, auth)
     if (usersResponse) return usersResponse
