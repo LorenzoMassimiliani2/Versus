@@ -24,6 +24,7 @@ import { findOrganizerRole, findTournamentById, findTournamentRole } from '../db
 import { apiError, json } from '../http/json'
 import { closePhaseIfDue, handlePhaseCloseRoute } from './phase-close'
 import { handlePhaseOpeningRoute } from './phase-opening'
+import { handlePhaseResolutionRoute } from './phase-resolution'
 import { handlePhaseResultsRoute } from './phase-results'
 import { handlePhaseTargetsRoute } from './phase-targets'
 import { handlePhaseVotesRoute } from './phase-votes'
@@ -299,6 +300,9 @@ export async function handlePhasesRoute(
 
   const closingResponse = await handlePhaseCloseRoute(request, env, auth, now)
   if (closingResponse) return closingResponse
+
+  const resolutionResponse = await handlePhaseResolutionRoute(request, env, auth, now)
+  if (resolutionResponse) return resolutionResponse
 
   const openingResponse = await handlePhaseOpeningRoute(request, env, auth, now)
   if (openingResponse) return openingResponse

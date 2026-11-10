@@ -353,6 +353,23 @@ export const strings = {
       draw: 'pareggio',
     } as Record<string, string>,
   },
+  resolution: {
+    title: 'Spareggio da risolvere',
+    subtitle:
+      'La fase è sospesa: senza un ordine deciso dall organizzatore il pareggio non può essere risolto.',
+    loading: 'Caricamento dei target da risolvere…',
+    target: (name: string) => `Target: ${name}`,
+    orderHint: 'Dal primo all ultimo. Usa le frecce per cambiare l ordine.',
+    up: 'Su',
+    down: 'Giù',
+    note: 'Nota obbligatoria',
+    notePlaceholder: 'Spiega perché hai scelto questo ordine.',
+    noteRequired: 'Inserisci una nota per confermare la risoluzione.',
+    confirm: 'Conferma risoluzione',
+    confirming: 'Chiusura della fase…',
+    resolved: 'Spareggio risolto: la fase è chiusa.',
+    noTargets: 'Nessun target ambiguo da risolvere.',
+  },
   planPreview: {
     title: 'Anteprima del piano',
     subtitle: 'Errori bloccanti, avvisi e struttura calcolata prima della pubblicazione.',
@@ -430,6 +447,10 @@ export const strings = {
     previous_repechage_unavailable: 'Il ripescaggio della fase precedente non è calcolabile.',
     invalid_repechage_override: 'La scelta dei ripescati non è valida.',
     manual_seeding_required: 'Serve un ordine di seeding per il tabellone manuale.',
+    note_required: 'Inserisci una nota per confermare la risoluzione.',
+    invalid_resolution: 'L ordine scelto non copre tutti gli elementi ambigui.',
+    phase_not_awaiting_resolution: 'La fase non attende la risoluzione di uno spareggio.',
+    phase_already_resolved: 'La fase è già stata risolta da un altro organizzatore.',
     already_organizer: 'L utente è già organizzatore del torneo.',
     cannot_remove_owner: 'L owner non può essere revocato.',
     network: 'Impossibile contattare il server. Riprova.',
@@ -584,6 +605,20 @@ const RESULTS_ERROR_MESSAGES: Record<string, string> = {
 
 export function resultsErrorMessage(code: string | undefined): string {
   return (code && RESULTS_ERROR_MESSAGES[code]) || strings.errors.unknown
+}
+
+const RESOLUTION_ERROR_MESSAGES: Record<string, string> = {
+  invalid_request: strings.errors.invalid_fields,
+  forbidden: strings.errors.forbidden,
+  not_found: strings.errors.phase_not_found,
+  note_required: strings.errors.note_required,
+  invalid_resolution: strings.errors.invalid_resolution,
+  phase_not_awaiting_resolution: strings.errors.phase_not_awaiting_resolution,
+  phase_already_resolved: strings.errors.phase_already_resolved,
+}
+
+export function resolutionErrorMessage(code: string | undefined): string {
+  return (code && RESOLUTION_ERROR_MESSAGES[code]) || strings.errors.unknown
 }
 
 const VOTE_ERROR_MESSAGES: Record<string, string> = {

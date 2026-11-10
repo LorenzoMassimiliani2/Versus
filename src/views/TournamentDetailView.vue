@@ -6,6 +6,7 @@ import CustomFieldsPanel from '@/components/tournament/CustomFieldsPanel.vue'
 import ElementsPanel from '@/components/tournament/ElementsPanel.vue'
 import OrganizersPanel from '@/components/tournament/OrganizersPanel.vue'
 import ParticipantsPanel from '@/components/tournament/ParticipantsPanel.vue'
+import PhaseResolutionPanel from '@/components/tournament/PhaseResolutionPanel.vue'
 import PhasesPanel from '@/components/tournament/PhasesPanel.vue'
 import PlanPreviewPanel from '@/components/tournament/PlanPreviewPanel.vue'
 import { strings, tournamentStatusLabel } from '@/lib/strings'
@@ -31,6 +32,9 @@ const openVotePhases = computed(() =>
 )
 const resultPhases = computed(() =>
   phases.phases.filter((phase) => phase.status === 'closed' || phase.status === 'open'),
+)
+const resolutionPhases = computed(() =>
+  phases.phases.filter((phase) => phase.status === 'awaiting_resolution'),
 )
 
 const editName = ref('')
@@ -125,6 +129,16 @@ async function submitEdit(): Promise<void> {
           {{ strings.tournaments.publishWizard }}
         </RouterLink>
       </div>
+
+      <template v-if="isOrganizer">
+        <PhaseResolutionPanel
+          v-for="phase in resolutionPhases"
+          :key="phase.id"
+          :phase-id="phase.id"
+          :phase-name="phase.name"
+          @resolved="phases.load(tournamentId)"
+        />
+      </template>
 
       <div v-if="resultPhases.length > 0" class="space-y-2">
         <h2 class="text-base font-semibold">{{ strings.results.title }}</h2>

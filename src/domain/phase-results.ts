@@ -5,6 +5,7 @@ import { tallyRanking, type RankingAssignment, type RankingVote } from './rankin
 import { applyRepechage, type RepechageCandidate } from './repechage'
 import { computeStandings, type StandingsMatch } from './standings'
 import type { PhaseAdvance, PhaseConfig, PhaseFormula, PhaseVoteType } from './phases'
+import type { ResolutionOrder, UnresolvedTarget } from './phase-resolution'
 
 /** Fase in ingresso al calcolo dei risultati. */
 export interface ResultsPhase {
@@ -55,6 +56,8 @@ export interface ComputeResultsInput {
   matches: ResultsMatch[]
   duelVotes: ResultsDuelVote[]
   ballotVotes: ResultsBallotVote[]
+  /** Ordini scelti dall'organizzatore per i target ancora ambigui. */
+  resolutions?: readonly ResolutionOrder[]
 }
 
 export interface ResultsRankingRow {
@@ -109,6 +112,8 @@ export interface ComputeResultsSuccess {
   results: ResultsPayload
   /** Gruppi di elementi ancora a pari merito dopo i criteri automatici. */
   unresolved: string[][]
+  /** Gli stessi gruppi con il target che li contiene. */
+  unresolvedTargets: UnresolvedTarget[]
   /** Vero quando un pareggio incide su una posizione che conta per l'avanzamento. */
   requiresManualResolution: boolean
 }
@@ -196,6 +201,7 @@ function tieCrossesCutoff(
 function duelResult(
   match: ResultsMatch,
   votes: readonly DuelVote[],
+  manualWinner: 'a' | 'b' | null,
 ): { payload: ResultsMatchPayload; unresolved: boolean } {
   const sideA = match.elementAId ?? null
   const sideB = match.elementBId ?? null
@@ -218,6 +224,7 @@ function duelResult(
     sideB,
     votes,
     criteria: ['credits', 'voters'],
+    manualWinner,
   })
 
   return {
@@ -255,6 +262,8 @@ function groupResults(
   group: ResultsGroup,
   matchPayloadById: ReadonlyMap<string, ResultsMatchPayload>,
   unresolved: string[][],
+  unresolvedTargets: UnresolvedTarget[],
+  manualOrder: readonly string[] | undefined,
 ): { payload: ResultsGroupPayload; requiresManualResolution: boolean } {
   const members = new Set(group.memberIds)
   const matches = input.matches.filter((match) => match.groupId === group.id)
@@ -288,6 +297,7 @@ function groupResults(
     const standings = computeStandings(standingsMatches, {
       elementIds: [...members],
       points: scoringPoints(input.phase.config),
+      manualOrder,
     })
     const rows: ResultsRankingRow[] = standings.rows.map((row) => ({
       elementId: row.elementId,
@@ -301,6 +311,9 @@ function groupResults(
       tieCrossesCutoff(groupIds, rows, cutoff),
     )
     unresolved.push(...tied)
+    for (const elementIds of tied) {
+      unresolvedTargets.push({ targetId: group.id, elementIds })
+    }
 
     return {
       payload: { groupId: group.id, ranking: rows },
@@ -312,6 +325,7 @@ function groupResults(
   const standings = tallyRanking(votes, {
     scale: scalePoints(input.phase.config),
     elementIds: [...members],
+    manualOrder,
   })
   const rows: ResultsRankingRow[] = standings.rows.map((row) => ({
     elementId: row.elementId,
@@ -322,6 +336,9 @@ function groupResults(
   }))
   const tied = standings.unresolved.filter((groupIds) => tieCrossesCutoff(groupIds, rows, cutoff))
   unresolved.push(...tied)
+  for (const elementIds of tied) {
+    unresolvedTargets.push({ targetId: group.id, elementIds })
+  }
 
   return {
     payload: { groupId: group.id, ranking: rows },
@@ -332,13 +349,15 @@ function groupResults(
 function rankingResults(
   input: ComputeResultsInput,
   unresolved: string[][],
+  unresolvedTargets: UnresolvedTarget[],
+  manualOrder: readonly string[] | undefined,
 ): { rows: ResultsRankingRow[]; requiresManualResolution: boolean } {
   const members = new Set(input.entrants.map((entrant) => entrant.elementId))
   const cutoff = cutoffType(input.phase.advance)
 
   if (input.phase.voteType === 'pick') {
     const votes = pickVotes(input.ballotVotes, input.phase.id, members)
-    const standings = tallyPick(votes, { elementIds: [...members] })
+    const standings = tallyPick(votes, { elementIds: [...members], manualOrder })
     const rows: ResultsRankingRow[] = standings.rows.map((row) => ({
       elementId: row.elementId,
       score: row.picks,
@@ -349,6 +368,9 @@ function rankingResults(
     }))
     const tied = standings.unresolved.filter((groupIds) => tieCrossesCutoff(groupIds, rows, cutoff))
     unresolved.push(...tied)
+    for (const elementIds of tied) {
+      unresolvedTargets.push({ targetId: input.phase.id, elementIds })
+    }
     return { rows, requiresManualResolution: tied.length > 0 }
   }
 
@@ -356,6 +378,7 @@ function rankingResults(
   const standings = tallyRanking(votes, {
     scale: scalePoints(input.phase.config),
     elementIds: [...members],
+    manualOrder,
   })
   const rows: ResultsRankingRow[] = standings.rows.map((row) => ({
     elementId: row.elementId,
@@ -366,6 +389,9 @@ function rankingResults(
   }))
   const tied = standings.unresolved.filter((groupIds) => tieCrossesCutoff(groupIds, rows, cutoff))
   unresolved.push(...tied)
+  for (const elementIds of tied) {
+    unresolvedTargets.push({ targetId: input.phase.id, elementIds })
+  }
   return { rows, requiresManualResolution: tied.length > 0 }
 }
 
@@ -422,9 +448,22 @@ export function repechageCandidatesFromResults(
   return excluded.map((elementId) => byId.get(elementId)!)
 }
 
+function manualDuelWinner(
+  match: ResultsMatch,
+  ordering: readonly string[] | undefined,
+): 'a' | 'b' | null {
+  if (!ordering || ordering.length === 0) return null
+  const first = ordering[0]
+  if (first === match.elementAId) return 'a'
+  if (first === match.elementBId) return 'b'
+  return null
+}
+
 function matchPayloads(
   input: ComputeResultsInput,
   unresolved: string[][],
+  unresolvedTargets: UnresolvedTarget[],
+  manualOrderFor: (targetId: string) => readonly string[] | undefined,
 ): { matches: ResultsMatchPayload[]; requiresManualResolution: boolean } {
   const matches: ResultsMatchPayload[] = []
   let requiresManualResolution = false
@@ -433,13 +472,15 @@ function matchPayloads(
     const votes = input.duelVotes
       .filter((vote) => vote.matchId === match.id)
       .map((vote): DuelVote => ({ side: vote.side, credits: vote.credits }))
-    const result = duelResult(match, votes)
+    const result = duelResult(match, votes, manualDuelWinner(match, manualOrderFor(match.id)))
     matches.push(result.payload)
     if (result.unresolved) {
       requiresManualResolution = true
-      unresolved.push(
-        [match.elementAId, match.elementBId].filter((id): id is string => id !== null),
+      const elementIds = [match.elementAId, match.elementBId].filter(
+        (id): id is string => id !== null,
       )
+      unresolved.push(elementIds)
+      unresolvedTargets.push({ targetId: match.id, elementIds })
     }
   }
 
@@ -465,28 +506,42 @@ function advanceMatches(matches: readonly ResultsMatchPayload[]): AdvanceMatch[]
  */
 export function computePhaseResults(input: ComputeResultsInput): ComputeResultsResult {
   const unresolved: string[][] = []
+  const unresolvedTargets: UnresolvedTarget[] = []
   const groupPayloads: ResultsGroupPayload[] = []
   let groupRequiresResolution = false
+
+  const ordersByTarget = new Map(
+    (input.resolutions ?? []).map((resolution) => [resolution.targetId, resolution.ordering]),
+  )
+  const manualOrderFor = (targetId: string): readonly string[] | undefined =>
+    ordersByTarget.get(targetId)
 
   const isElimination = input.phase.formula === 'elimination'
   const isRanking = input.phase.formula === 'ranking'
 
   const matchesComputed =
     input.phase.voteType === 'duel'
-      ? matchPayloads(input, unresolved)
+      ? matchPayloads(input, unresolved, unresolvedTargets, manualOrderFor)
       : { matches: [], requiresManualResolution: false }
   const matchPayloadById = new Map(
     matchesComputed.matches.map((match) => [match.matchId, match]),
   )
 
   for (const group of input.groups) {
-    const computed = groupResults(input, group, matchPayloadById, unresolved)
+    const computed = groupResults(
+      input,
+      group,
+      matchPayloadById,
+      unresolved,
+      unresolvedTargets,
+      manualOrderFor(group.id),
+    )
     groupPayloads.push(computed.payload)
     groupRequiresResolution = groupRequiresResolution || computed.requiresManualResolution
   }
 
   const rankingComputed = isRanking
-    ? rankingResults(input, unresolved)
+    ? rankingResults(input, unresolved, unresolvedTargets, manualOrderFor(input.phase.id))
     : { rows: [], requiresManualResolution: false }
 
   const rankingOrder = isRanking
@@ -556,6 +611,7 @@ export function computePhaseResults(input: ComputeResultsInput): ComputeResultsR
       winnerElementId,
     },
     unresolved,
+    unresolvedTargets,
     requiresManualResolution,
   }
 }

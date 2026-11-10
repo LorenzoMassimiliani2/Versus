@@ -15,13 +15,21 @@ import { findOrganizerRole, findTournamentById } from '../db/tournaments'
 import { apiError, json } from '../http/json'
 import {
   computePhaseResults,
+  type ComputeResultsResult,
   type ResultsPayload,
 } from '../../domain/phase-results'
 import { parseTournamentSettings } from '../../domain/tournament-settings'
+import type { ResolutionOrder } from '../../domain/phase-resolution'
 import { openPendingPhase, phaseAdvance, phaseConfig } from '../phase-open'
 import { serialisePhase } from './phases'
 
 export type CloseTriggerReason = 'deadline' | 'all_voted'
+
+export interface PhaseResolutionInput {
+  resolutions: readonly ResolutionOrder[]
+  note: string
+  actorId: string
+}
 
 interface SerialisedResult {
   version: number
@@ -36,7 +44,7 @@ interface CloseOutcome {
   unresolved: string[][]
 }
 
-type CloseFailure = { error: 'repechage_unavailable' }
+type CloseFailure = { error: 'repechage_unavailable' | 'invalid_resolution' }
 
 function parseJson<T>(raw: string, fallback: T): T {
   try {
@@ -99,16 +107,14 @@ export async function evaluateCloseTrigger(
 }
 
 /**
- * Calcola i risultati e chiude la fase con un batch condizionale su
- * `status = 'open'`. Due richieste concorrenti non producono due snapshot:
- * il claim e l'insert sono nella stessa transazione e l'insert è protetto da
- * `INSERT OR IGNORE` più il vincolo `UNIQUE(phase_id, version)`.
+ * Calcola i risultati correnti della fase. Usata sia dalla chiusura sia dalla
+ * risoluzione manuale, così il calcolo ha una sola sorgente.
  */
-async function closePhase(
+export async function computePhaseResultsForPhase(
   env: Env,
   phase: PhaseRecord,
-  now: number,
-): Promise<CloseOutcome | CloseFailure> {
+  resolutions?: readonly ResolutionOrder[],
+): Promise<ComputeResultsResult> {
   const config = phaseConfig(phase)
   const advance = phaseAdvance(phase)
   const [hasDuelVotes, hasBallotVotes] = await Promise.all([
@@ -121,7 +127,7 @@ async function closePhase(
     hasBallotVotes ? listPhaseBallotVotes(env, phase.id) : Promise.resolve([]),
   ])
 
-  const computed = computePhaseResults({
+  return computePhaseResults({
     phase: {
       id: phase.id,
       formula: phase.formula,
@@ -132,13 +138,38 @@ async function closePhase(
     ...operation,
     duelVotes,
     ballotVotes,
+    ...(resolutions ? { resolutions } : {}),
   })
+}
+
+/**
+ * Calcola i risultati e chiude la fase con un batch condizionale. Due
+ * richieste concorrenti non producono due snapshot: il claim e l'insert sono
+ * nella stessa transazione e l'insert è protetto da `INSERT OR IGNORE` più il
+ * vincolo `UNIQUE(phase_id, version)`.
+ *
+ * Con `resolution` il claim richiede `status = 'awaiting_resolution'` e il
+ * batch scrive anche la riga di `audit_log` con nota e ordinamenti scelti.
+ */
+export async function closePhase(
+  env: Env,
+  phase: PhaseRecord,
+  now: number,
+  resolution?: PhaseResolutionInput,
+): Promise<CloseOutcome | CloseFailure> {
+  const config = phaseConfig(phase)
+  const advance = phaseAdvance(phase)
+  const computed = await computePhaseResultsForPhase(env, phase, resolution?.resolutions)
 
   if (!computed.ok) return { error: computed.error }
 
   const timestamp = new Date(now).toISOString()
 
   if (computed.requiresManualResolution) {
+    // Una risoluzione incompleta non deve chiudere la fase: la richiesta non
+    // copre tutti i target ambigui o l'ordinamento non è applicabile.
+    if (resolution) return { error: 'invalid_resolution' }
+
     await env.DB.batch([
       env.DB.prepare(
         `UPDATE phases SET status = 'awaiting_resolution', updated_at = ?
@@ -167,12 +198,13 @@ async function closePhase(
     config,
     advance,
   })
+  const claimStatus = resolution ? 'awaiting_resolution' : 'open'
 
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
       `UPDATE phases SET status = 'closed', closed_at = ?, updated_at = ?
-       WHERE id = ? AND status = 'open'`,
-    ).bind(timestamp, timestamp, phase.id),
+       WHERE id = ? AND status = ?`,
+    ).bind(timestamp, timestamp, phase.id, claimStatus),
     env.DB.prepare(
       `INSERT OR IGNORE INTO phase_results (id, phase_id, version, closed_at,
          config_snapshot, results)
@@ -196,6 +228,33 @@ async function closePhase(
        )`,
     ).bind(timestamp, phase.tournament_id, phase.id, timestamp),
   ]
+
+  if (resolution) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO audit_log (id, tournament_id, actor_id, action, target_type,
+           target_id, before, after, created_at)
+         SELECT ?, ?, ?, 'phase.resolve', 'phase', ?, ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM phase_results WHERE phase_id = ? AND closed_at = ?
+         )`,
+      ).bind(
+        uuidv7(now),
+        phase.tournament_id,
+        resolution.actorId,
+        phase.id,
+        JSON.stringify({ status: 'awaiting_resolution' }),
+        JSON.stringify({
+          status: 'closed',
+          note: resolution.note,
+          resolutions: resolution.resolutions,
+        }),
+        timestamp,
+        phase.id,
+        timestamp,
+      ),
+    )
+  }
 
   if (advance.type === 'winner' && computed.results.winnerElementId) {
     statements.push(
@@ -230,6 +289,7 @@ async function closePhase(
     unresolved: [],
   }
 }
+
 
 export interface AutoAdvanceOutcome {
   status: 'opened' | 'concluded' | 'skipped' | 'failed'
