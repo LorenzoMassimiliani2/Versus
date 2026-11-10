@@ -123,6 +123,8 @@ export const strings = {
     settingsTitle: 'Impostazioni del torneo',
     selfVoteAllowed: 'Consenti il voto sul proprio elemento',
     autoAdvance: 'Avanzamento automatico alla chiusura della fase',
+    autoAdvanceLocked:
+      'Non modificabile dopo l apertura della prima fase.',
   },
   participants: {
     title: 'Partecipanti',
@@ -174,6 +176,13 @@ export const strings = {
     delete: 'Elimina',
     moveUp: 'Sposta su',
     moveDown: 'Sposta giù',
+    blocked: 'Bloccata',
+    blockedHint:
+      'La fase è già avviata o la fase precedente non è chiusa: non è modificabile.',
+    addBlocked:
+      'Per aggiungere una fase devi prima chiudere l ultima fase del piano.',
+    autoAdvanceHint:
+      'Avanzamento automatico attivo: i ripescati sono calcolati automaticamente.',
     playVideo: 'Riproduci video',
     videoTitle: 'Video dell\'elemento',
   },
@@ -218,6 +227,13 @@ export const strings = {
     delete: 'Elimina',
     moveUp: 'Sposta su',
     moveDown: 'Sposta giù',
+    blocked: 'Bloccata',
+    blockedHint:
+      'La fase è già avviata o la fase precedente non è chiusa: non è modificabile.',
+    addBlocked:
+      'Per aggiungere una fase devi prima chiudere l ultima fase del piano.',
+    autoAdvanceHint:
+      'Avanzamento automatico attivo: i ripescati sono calcolati automaticamente.',
     previewTitle: 'Anteprima struttura',
     previewEmpty: 'L anteprima appare quando aggiungi almeno una fase.',
     formulaLabels: {

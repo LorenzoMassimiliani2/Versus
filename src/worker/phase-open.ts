@@ -23,6 +23,7 @@ import { applyRepechage } from '../domain/repechage'
 import { repechageCandidatesFromResults } from '../domain/phase-results'
 import { planOpening } from '../domain/phase-opening'
 import { defaultPhaseConfig, type PhaseAdvance, type PhaseConfig } from '../domain/phases'
+import { parseTournamentSettings } from '../domain/tournament-settings'
 
 export interface ResultsPayload {
   qualified?: string[]
@@ -298,6 +299,11 @@ export async function openPendingPhase(
   if (!tournament) return { ok: false, status: 404, error: 'not_found' }
   if (tournament.status !== 'published' && tournament.status !== 'running') {
     return { ok: false, status: 409, error: 'tournament_not_openable' }
+  }
+
+  // Con avanzamento automatico il ripescaggio usa i criteri automatici.
+  if (options.override !== undefined && parseTournamentSettings(tournament.settings).autoAdvance) {
+    return { ok: false, status: 422, error: 'repechage_override_unavailable' }
   }
 
   const preview = await computeEntrants(env, phase)

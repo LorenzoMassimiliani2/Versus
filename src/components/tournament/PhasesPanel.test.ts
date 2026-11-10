@@ -50,11 +50,15 @@ function planMock(phases: Phase[], extra?: (input: RequestInfo | URL, init?: Req
   })
 }
 
-async function mountPanel(editable = true, canOpen = false) {
+async function mountPanel(
+  editable = true,
+  canOpen = false,
+  extra: Record<string, unknown> = {},
+) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const wrapper = mount(PhasesPanel, {
-    props: { tournamentId: 't1', editable, canOpen },
+    props: { tournamentId: 't1', editable, canOpen, ...extra },
     global: { plugins: [pinia] },
   })
   await flushPromises()
@@ -155,6 +159,48 @@ describe('PhasesPanel', () => {
     expect(wrapper.find('form').exists()).toBe(false)
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(wrapper.text()).toContain('solo prima dell avvio')
+  })
+
+  it('indica le fasi bloccate e lascia modificabili le pending dopo una fase chiusa', async () => {
+    vi.stubGlobal(
+      'fetch',
+      planMock([
+        phase({ id: 'p1', position: 1, name: 'Gironi', status: 'closed' }),
+        phase({ id: 'p2', position: 2, name: 'Finale', formula: 'ranking', voteType: 'pick', advance: { type: 'winner' } }),
+      ]),
+    )
+
+    const wrapper = await mountPanel(true)
+
+    expect(wrapper.findAll('[data-testid="phase-blocked"]')).toHaveLength(1)
+    const items = wrapper.findAll('[data-testid="phase-item"]')
+    const closedButtons = items[0]!.findAll('button')
+    const pendingButtons = items[1]!.findAll('button')
+    expect(
+      closedButtons.some(
+        (button) => button.text() === 'Modifica' && button.attributes('disabled') !== undefined,
+      ),
+    ).toBe(true)
+    expect(
+      pendingButtons.some(
+        (button) => button.text() === 'Modifica' && button.attributes('disabled') === undefined,
+      ),
+    ).toBe(true)
+    expect(wrapper.text()).toContain('Per aggiungere una fase devi prima chiudere')
+  })
+
+  it('blocca una fase pending la cui precedente non è chiusa', async () => {
+    vi.stubGlobal(
+      'fetch',
+      planMock([
+        phase({ id: 'p1', position: 1, name: 'Gironi', status: 'open' }),
+        phase({ id: 'p2', position: 2, name: 'Finale', formula: 'ranking', voteType: 'pick', advance: { type: 'winner' } }),
+      ]),
+    )
+
+    const wrapper = await mountPanel(true)
+
+    expect(wrapper.findAll('[data-testid="phase-blocked"]')).toHaveLength(2)
   })
 })
 describe('apertura della fase', () => {
@@ -284,5 +330,51 @@ describe('apertura della fase', () => {
     expect(JSON.parse(String(post![1]!.body))).toEqual({
       repechageOverride: ['e3', 'e4'],
     })
+  })
+
+  it('con autoAdvance attivo non mostra l override e apre con i ripescati automatici', async () => {
+    const fetchMock = planMock(
+      [phase({ status: 'pending', advance: { type: 'top_global', n: 2 } })],
+      (input, init) => {
+        const url = String(input)
+        if (url.endsWith('/open-preview') && init?.method === undefined) {
+          return jsonResponse({
+            entrants: [],
+            directQualified: [{ id: 'e1', name: 'Alfa' }],
+            repechage: {
+              targetSize: 3,
+              slots: 2,
+              selected: [
+                { id: 'e2', name: 'Beta' },
+                { id: 'e3', name: 'Gamma' },
+              ],
+              excluded: [
+                { id: 'e2', name: 'Beta' },
+                { id: 'e3', name: 'Gamma' },
+                { id: 'e4', name: 'Delta' },
+              ],
+            },
+          })
+        }
+        if (url.endsWith('/open') && init?.method === 'POST') {
+          return jsonResponse({
+            phase: phase({ status: 'open' }),
+            operation: openedOperation(),
+          })
+        }
+        return null
+      },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = await mountPanel(false, true, { autoAdvance: true })
+    await wrapper.get('[data-testid="open-phase"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0)
+    const post = fetchMock.mock.calls.find(([input, init]) => {
+      return String(input).endsWith('/open') && init?.method === 'POST'
+    })
+    expect(JSON.parse(String(post![1]!.body))).toEqual({})
   })
 })

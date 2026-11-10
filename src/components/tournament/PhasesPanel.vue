@@ -12,10 +12,20 @@ import {
 } from '@/domain/phases'
 import { strings } from '@/lib/strings'
 import { usePhasesStore, type Phase, type PhaseInput } from '@/stores/phases'
+import { usePlanPreviewStore } from '@/stores/plan-preview'
 
-const props = defineProps<{ tournamentId: string; editable: boolean; canOpen?: boolean }>()
+const props = withDefaults(
+  defineProps<{
+    tournamentId: string
+    editable: boolean
+    canOpen?: boolean
+    autoAdvance?: boolean
+  }>(),
+  { canOpen: false, autoAdvance: false },
+)
 
 const store = usePhasesStore()
+const planPreview = usePlanPreviewStore()
 
 const editingId = ref<string | null>(null)
 const name = ref('')
@@ -47,6 +57,7 @@ const operationNames = computed(() => {
   return names
 })
 const overrideReady = computed(() => {
+  if (props.autoAdvance) return true
   const preview = activePreview.value
   if (!preview?.repechage) return true
   return overrideSelected.value.length === preview.repechage.slots
@@ -55,9 +66,40 @@ const overrideReady = computed(() => {
 const voteTypeOptions = computed(() => allowedVoteTypes(formula.value))
 const advanceOptions = computed(() => allowedAdvanceTypes(formula.value))
 const canSubmit = computed(() => name.value.trim().length > 0 && !store.saving)
-const canReorder = computed(
-  () => props.editable && store.allPending && store.phases.length > 1,
+const planStarted = computed(() =>
+  store.phases.some((phase) => phase.status !== 'pending'),
 )
+const canAddPhase = computed(() => {
+  if (!props.editable) return false
+  if (!planStarted.value) return true
+  const last = [...store.phases].sort((a, b) => a.position - b.position).at(-1)
+  return last === undefined || last.status === 'closed'
+})
+
+/** A2: dopo l'avvio una fase pending è modificabile se la coda pending è dopo una fase chiusa. */
+function isPendingEditable(phase: Phase): boolean {
+  if (!props.editable || phase.status !== 'pending') return false
+  if (!planStarted.value) return true
+  const ordered = [...store.phases].sort((a, b) => a.position - b.position)
+  const index = ordered.findIndex((item) => item.id === phase.id)
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const previous = ordered[cursor]!
+    if (previous.status !== 'pending') return previous.status === 'closed'
+  }
+  return true
+}
+
+function canMovePhase(index: number, delta: number): boolean {
+  const target = index + delta
+  if (target < 0 || target >= store.phases.length) return false
+  return (
+    isPendingEditable(store.phases[index]!) && isPendingEditable(store.phases[target]!)
+  )
+}
+
+function refreshPreview(): void {
+  void planPreview.load(props.tournamentId)
+}
 
 onMounted(() => {
   void store.load(props.tournamentId)
@@ -154,7 +196,10 @@ async function submit(): Promise<void> {
   const ok = editingId.value
     ? await store.update(editingId.value, input)
     : await store.create(props.tournamentId, input)
-  if (ok) resetForm()
+  if (ok) {
+    resetForm()
+    refreshPreview()
+  }
 }
 
 function move(index: number, delta: number): void {
@@ -162,7 +207,13 @@ function move(index: number, delta: number): void {
   const target = index + delta
   if (target < 0 || target >= ids.length) return
   ;[ids[index], ids[target]] = [ids[target]!, ids[index]!]
-  void store.reorder(props.tournamentId, ids)
+  void store.reorder(props.tournamentId, ids).then((ok) => {
+    if (ok) refreshPreview()
+  })
+}
+
+async function removePhase(phase: Phase): Promise<void> {
+  if (await store.remove(props.tournamentId, phase.id)) refreshPreview()
 }
 
 function advanceSummary(phase: Phase): string {
@@ -184,7 +235,7 @@ async function requestOpen(phase: Phase): Promise<void> {
     openPhaseId.value = null
     return
   }
-  if (preview.repechage && preview.repechage.slots > 0) {
+  if (!props.autoAdvance && preview.repechage && preview.repechage.slots > 0) {
     overrideSelected.value = preview.repechage.selected.map((entry) => entry.id)
     return
   }
@@ -207,7 +258,7 @@ async function confirmOpen(): Promise<void> {
 
   const preview = activePreview.value
   let override: string[] | undefined
-  if (preview?.repechage && preview.repechage.slots > 0) {
+  if (!props.autoAdvance && preview?.repechage && preview.repechage.slots > 0) {
     const original = preview.repechage.selected.map((entry) => entry.id)
     const changed =
       overrideSelected.value.length !== original.length ||
@@ -255,6 +306,13 @@ function cancelOpen(): void {
             <span class="rounded-full border border-border px-2 py-0.5 text-xs">
               {{ strings.phases.statusLabels[phase.status] }}
             </span>
+            <span
+              v-if="editable && !isPendingEditable(phase)"
+              class="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+              data-testid="phase-blocked"
+            >
+              {{ strings.phases.blocked }}
+            </span>
           </div>
           <p class="text-xs text-muted-foreground">
             {{ strings.phases.formulaLabels[phase.formula] }} ·
@@ -266,7 +324,7 @@ function cancelOpen(): void {
           <button
             class="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-40"
             type="button"
-            :disabled="!canReorder || index === 0 || store.saving"
+            :disabled="!canMovePhase(index, -1) || store.saving"
             @click="move(index, -1)"
           >
             {{ strings.phases.moveUp }}
@@ -274,24 +332,26 @@ function cancelOpen(): void {
           <button
             class="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-40"
             type="button"
-            :disabled="!canReorder || index === store.phases.length - 1 || store.saving"
+            :disabled="!canMovePhase(index, 1) || store.saving"
             @click="move(index, 1)"
           >
             {{ strings.phases.moveDown }}
           </button>
           <button
-            class="h-8 rounded-md border border-border px-2 text-xs"
+            class="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-40"
             type="button"
-            :disabled="store.saving"
+            :disabled="store.saving || !isPendingEditable(phase)"
+            :title="isPendingEditable(phase) ? undefined : strings.phases.blockedHint"
             @click="startEdit(phase)"
           >
             {{ strings.phases.edit }}
           </button>
           <button
-            class="h-8 rounded-md border border-border px-2 text-xs"
+            class="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-40"
             type="button"
-            :disabled="store.saving"
-            @click="store.remove(tournamentId, phase.id)"
+            :disabled="store.saving || !isPendingEditable(phase)"
+            :title="isPendingEditable(phase) ? undefined : strings.phases.blockedHint"
+            @click="removePhase(phase)"
           >
             {{ strings.phases.delete }}
           </button>
@@ -322,7 +382,13 @@ function cancelOpen(): void {
         {{ strings.planPreview.direct }}:
         {{ activePreview.directQualified.map((entry) => entry.name).join(', ') }}
       </p>
-      <div v-if="activePreview.repechage && activePreview.repechage.slots > 0" class="space-y-2">
+      <p v-if="autoAdvance" class="text-xs text-muted-foreground">
+        {{ strings.phases.autoAdvanceHint }}
+      </p>
+      <div
+        v-if="!autoAdvance && activePreview.repechage && activePreview.repechage.slots > 0"
+        class="space-y-2"
+      >
         <p class="text-sm font-medium">{{ strings.phases.repechageTitle }}</p>
         <p class="text-xs text-muted-foreground">{{ strings.phases.repechageHint }}</p>
         <p class="text-xs text-muted-foreground">
@@ -403,6 +469,9 @@ function cancelOpen(): void {
     <p v-if="!editable" class="text-sm text-muted-foreground">{{ strings.phases.locked }}</p>
 
     <form v-else class="space-y-3 border-t border-border pt-4" @submit.prevent="submit">
+      <p v-if="!editingId && !canAddPhase" class="text-sm text-muted-foreground" role="status">
+        {{ strings.phases.addBlocked }}
+      </p>
       <h3 class="text-sm font-semibold">
         {{ editingId ? strings.phases.editTitle : strings.phases.addTitle }}
       </h3>
@@ -561,7 +630,7 @@ function cancelOpen(): void {
         <button
           class="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
           type="submit"
-          :disabled="!canSubmit"
+          :disabled="!canSubmit || (!editingId && !canAddPhase)"
         >
           {{ editingId ? strings.phases.update : strings.phases.create }}
         </button>

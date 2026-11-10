@@ -1,7 +1,4 @@
 import type { AuthContext } from '../auth/session'
-import { defaultPhaseConfig, type PhaseAdvance, type PhaseConfig } from '../../domain/phases'
-import type { CustomFieldDefinition } from '../../domain/custom-values'
-import { validatePlan, type PlanInput } from '../../domain/plan'
 import {
   DEFAULT_TOURNAMENT_SETTINGS,
   parseTournamentSettings,
@@ -29,10 +26,9 @@ import {
   type TournamentRecord,
   type TournamentWithRole,
 } from '../db/tournaments'
-import { listCustomFields, listElements } from '../db/elements'
-import { countActiveParticipants } from '../db/participants'
-import { countStartedPhases, listPhases } from '../db/phases'
+import { countStartedPhases } from '../db/phases'
 import { apiError, json } from '../http/json'
+import { loadPlanValidation } from '../plan-validation'
 
 const NAME_MAX_LENGTH = 120
 const DESCRIPTION_MAX_LENGTH = 2000
@@ -135,14 +131,6 @@ function parseCreateInput(value: unknown): TournamentInput | null {
     input.settings = settings
   }
   return input
-}
-
-function parseJson<T>(raw: string, fallback: T): T {
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
 }
 
 function parsePatchInput(value: unknown): TournamentInput | null {
@@ -333,48 +321,6 @@ async function patchTournamentHandler(
 
   const organizers = await listOrganizers(env, tournamentId)
   return json({ tournament: toDetail(updated, role, organizers) })
-}
-
-async function loadPlanValidation(
-  env: Env,
-  tournament: TournamentRecord,
-  now: number,
-): Promise<ReturnType<typeof validatePlan>> {
-  const tournamentId = tournament.id
-  const [elements, fields, phases, activeParticipants] = await Promise.all([
-    listElements(env, tournamentId),
-    listCustomFields(env, tournamentId),
-    listPhases(env, tournamentId),
-    countActiveParticipants(env, tournamentId),
-  ])
-
-  const input: PlanInput = {
-    tournament: {
-      name: tournament.name,
-      slug: tournament.slug,
-      settings: parseTournamentSettings(tournament.settings),
-    },
-    elements: elements.map((element) => ({
-      id: element.id,
-      name: element.name,
-      imageUrl: element.image_url,
-      customValues: parseJson<Record<string, unknown>>(element.custom_values, {}),
-      position: element.position,
-    })),
-    fields: fields.map((field): CustomFieldDefinition => ({ key: field.key, type: field.type })),
-    phases: phases.map((phase) => ({
-      position: phase.position,
-      name: phase.name,
-      formula: phase.formula,
-      voteType: phase.vote_type,
-      config: parseJson<PhaseConfig>(phase.config, defaultPhaseConfig()),
-      advance: parseJson<PhaseAdvance>(phase.advance, { type: 'all' }),
-    })),
-    activeParticipants,
-    now: new Date(now),
-  }
-
-  return validatePlan(input)
 }
 
 async function previewHandler(

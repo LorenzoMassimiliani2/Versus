@@ -524,4 +524,46 @@ describe('override dei ripescati', () => {
 
     expect(count(db, 'SELECT COUNT(*) AS count FROM phase_entrants WHERE phase_id = ?', phase.id)).toBe(0)
   })
+
+  it('rifiuta l override manuale quando l avanzamento automatico è attivo', async () => {
+    const { db, env } = createTestEnvironment()
+    const { alice, tournamentId, elements } = await baseTournament(env, db, 8, ['u1'])
+    seedClosedRepechagePhase(db, tournamentId, elements)
+    const phase = await createPhase(env, alice, tournamentId, {
+      name: 'Fase finale',
+      formula: 'ranking',
+      voteType: 'ranking',
+      config: {},
+      advance: { type: 'all' },
+    })
+    db.prepare('UPDATE tournaments SET settings = ? WHERE id = ?').run(
+      JSON.stringify({ selfVoteAllowed: true, autoAdvance: true }),
+      tournamentId,
+    )
+    publish(db, tournamentId)
+
+    const withOverride = await call(env, `/api/phases/${phase.id}/open`, alice, {
+      method: 'POST',
+      body: JSON.stringify({ repechageOverride: ['e7', 'e8'] }),
+    })
+    expect(withOverride.status).toBe(422)
+    expect(await withOverride.json()).toEqual({ error: 'repechage_override_unavailable' })
+
+    const automatic = await call(env, `/api/phases/${phase.id}/open`, alice, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    expect(automatic.status).toBe(200)
+    const body = (await automatic.json()) as {
+      operation: { entrants: Array<{ elementId: string }> }
+    }
+    expect(body.operation.entrants.map((entrant) => entrant.elementId)).toEqual([
+      'e1',
+      'e2',
+      'e3',
+      'e4',
+      'e5',
+      'e6',
+    ])
+  })
 })

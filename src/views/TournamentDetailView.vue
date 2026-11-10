@@ -25,6 +25,13 @@ const isOrganizer = computed(
 )
 const isOwner = computed(() => tournaments.current?.role === 'owner')
 const participantsEditable = computed(() => tournaments.current?.status === 'draft')
+const phasesEditable = computed(() => {
+  const status = tournaments.current?.status
+  return isOrganizer.value && (status === 'draft' || status === 'published' || status === 'running')
+})
+const autoAdvanceLocked = computed(() =>
+  phases.phases.some((phase) => phase.status !== 'pending'),
+)
 const openVotePhases = computed(() =>
   isOrganizer.value
     ? []
@@ -193,7 +200,8 @@ async function submitEdit(): Promise<void> {
         <ParticipantsPanel :tournament-id="tournamentId" :editable="participantsEditable" />
         <PhasesPanel
           :tournament-id="tournamentId"
-          :editable="participantsEditable"
+          :editable="phasesEditable"
+          :auto-advance="tournaments.current.settings.autoAdvance"
           :can-open="isOrganizer && tournaments.current.status !== 'draft'"
         />
         <PlanPreviewPanel :tournament-id="tournamentId" />
@@ -268,8 +276,14 @@ async function submitEdit(): Promise<void> {
               v-model="editAutoAdvance"
               class="mt-0.5 size-4"
               type="checkbox"
+              :disabled="autoAdvanceLocked"
             />
-            <span>{{ strings.tournamentDetail.autoAdvance }}</span>
+            <span>
+              {{ strings.tournamentDetail.autoAdvance }}
+              <span v-if="autoAdvanceLocked" class="block text-xs text-muted-foreground">
+                {{ strings.tournamentDetail.autoAdvanceLocked }}
+              </span>
+            </span>
           </label>
         </fieldset>
 
