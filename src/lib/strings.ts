@@ -43,8 +43,8 @@ export const strings = {
   tournaments: {
     title: 'Tornei',
     subtitle: 'I tornei che organizzi e quelli a cui partecipi.',
-    tabParticipating: 'In gara',
-    tabOrganizing: 'In regia',
+    tabParticipating: 'Partipa',
+    tabOrganizing: 'Organizzazione',
     tabUsers: 'Utenti',
     logout: 'Esci',
     createTitle: 'Nuovo torneo',
